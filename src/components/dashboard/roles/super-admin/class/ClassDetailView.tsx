@@ -11,7 +11,9 @@ import { Status, UserType } from "@prisma/client";
 import { api } from "@/trpc/react";
 import { type RouterOutputs } from "@/utils/api";
 import { type CalendarDay, type Modifiers } from "react-day-picker";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+import { type DateRange } from "react-day-picker";
 import { LuUsers, LuBookOpen, LuGraduationCap, LuUserCheck } from "react-icons/lu";
 import { Calendar } from "@/components/ui/calendar";
 import { format, addDays, isSameDay } from "date-fns";
@@ -96,6 +98,10 @@ export const ClassDetailsView = ({ isOpen, onClose, classId }: ClassDetailViewPr
 	const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 	const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 	const [selectedCalendarDate, setSelectedCalendarDate] = useState<Date>(new Date());
+	const [dateRange, setDateRange] = useState<DateRange>({
+		from: new Date(new Date().setMonth(new Date().getMonth() - 1)),
+		to: new Date()
+	});
 
 	const { data: classDetails, error: classError, isLoading } = api.class.getClassDetails.useQuery(
 		{ id: classId },
@@ -113,6 +119,30 @@ export const ClassDetailsView = ({ isOpen, onClose, classId }: ClassDetailViewPr
 		{ id: selectedStudentId! },
 		{ enabled: !!selectedStudentId }
 	) as { data: StudentProfile | undefined };
+
+	const { data: historicalData } = api.class.getHistoricalAnalytics.useQuery({
+		id: classId,
+		startDate: dateRange.from!,
+		endDate: dateRange.to!
+	}, {
+		enabled: isOpen && !!classId && !!dateRange.from && !!dateRange.to
+	});
+
+	const { data: performanceTrends } = api.class.getPerformanceTrends.useQuery({
+		id: classId,
+		startDate: dateRange.from!,
+		endDate: dateRange.to!
+	}, {
+		enabled: isOpen && !!classId && !!dateRange.from && !!dateRange.to
+	});
+
+	const { data: attendanceStats } = api.class.getAttendanceStats.useQuery({
+		id: classId,
+		startDate: dateRange.from!,
+		endDate: dateRange.to!
+	}, {
+		enabled: isOpen && !!classId && !!dateRange.from && !!dateRange.to
+	});
 
 	if (isLoading) {
 		return (
@@ -208,11 +238,12 @@ export const ClassDetailsView = ({ isOpen, onClose, classId }: ClassDetailViewPr
 					</Card>
 				</div>
 				<Tabs defaultValue="overview">
-					<TabsList className="grid w-full grid-cols-4">
+					<TabsList className="grid w-full grid-cols-5">
 						<TabsTrigger value="overview">Overview</TabsTrigger>
 						<TabsTrigger value="students">Students</TabsTrigger>
 						<TabsTrigger value="teachers">Teachers</TabsTrigger>
 						<TabsTrigger value="calendar">Calendar</TabsTrigger>
+						<TabsTrigger value="analytics">Analytics</TabsTrigger>
 					</TabsList>
 
 
@@ -389,6 +420,112 @@ export const ClassDetailsView = ({ isOpen, onClose, classId }: ClassDetailViewPr
 											)}
 										</div>
 									</div>
+								</div>
+							</CardContent>
+						</Card>
+					</TabsContent>
+
+					<TabsContent value="analytics">
+						<Card>
+							<CardHeader>
+								<CardTitle>Class Analytics</CardTitle>
+							</CardHeader>
+							<CardContent>
+								<div className="mb-6">
+									<h3 className="font-semibold mb-2">Select Date Range</h3>
+									<DatePickerWithRange
+										value={dateRange}
+										onChange={(range) => {
+											if (range?.from && range?.to) {
+												setDateRange(range);
+											}
+										}}
+									/>
+								</div>
+
+								<div className="space-y-6">
+									<Card>
+										<CardHeader>
+											<CardTitle>Performance Trends</CardTitle>
+										</CardHeader>
+										<CardContent>
+											{performanceTrends?.data ? (
+												<ResponsiveContainer width="100%" height={300}>
+													<LineChart data={performanceTrends.data}>
+														<CartesianGrid strokeDasharray="3 3" />
+														<XAxis dataKey="date" />
+														<YAxis />
+														<Tooltip />
+														<Line 
+															type="monotone" 
+															dataKey="averageScore" 
+															stroke="#8884d8"
+															name="Average Score"
+														/>
+													</LineChart>
+												</ResponsiveContainer>
+											) : (
+												<div className="text-center p-4 text-muted-foreground">
+													No performance data available for the selected period.
+												</div>
+											)}
+										</CardContent>
+									</Card>
+
+									<Card>
+										<CardHeader>
+											<CardTitle>Attendance Trends</CardTitle>
+										</CardHeader>
+										<CardContent>
+											{attendanceStats?.trends ? (
+												<ResponsiveContainer width="100%" height={300}>
+													<LineChart data={attendanceStats.trends}>
+														<CartesianGrid strokeDasharray="3 3" />
+														<XAxis dataKey="date" />
+														<YAxis />
+														<Tooltip />
+														<Line 
+															type="monotone" 
+															dataKey="attendanceRate" 
+															stroke="#82ca9d"
+															name="Attendance Rate"
+														/>
+													</LineChart>
+												</ResponsiveContainer>
+											) : (
+												<div className="text-center p-4 text-muted-foreground">
+													No attendance data available for the selected period.
+												</div>
+											)}
+										</CardContent>
+									</Card>
+
+									<Card>
+										<CardHeader>
+											<CardTitle>Subject Performance</CardTitle>
+										</CardHeader>
+										<CardContent>
+											{performanceTrends?.subjectWise ? (
+												<ResponsiveContainer width="100%" height={300}>
+													<BarChart data={performanceTrends.subjectWise}>
+														<CartesianGrid strokeDasharray="3 3" />
+														<XAxis dataKey="subject" />
+														<YAxis />
+														<Tooltip />
+														<Bar 
+															dataKey="averageScore" 
+															fill="#8884d8"
+															name="Average Score"
+														/>
+													</BarChart>
+												</ResponsiveContainer>
+											) : (
+												<div className="text-center p-4 text-muted-foreground">
+													No subject performance data available for the selected period.
+												</div>
+											)}
+										</CardContent>
+									</Card>
 								</div>
 							</CardContent>
 						</Card>

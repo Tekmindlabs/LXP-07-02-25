@@ -2,14 +2,17 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { api } from "@/utils/api";
+import { LuUsers, LuBookOpen, LuGraduationCap, LuTrendingUp } from "react-icons/lu";
+import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import type { Class, TeacherClass, StudentProfile } from "@prisma/client";
+import { DateRange } from "react-day-picker";
 
 interface PerformanceData {
 	date: string;
-	averageScore: number;
-}
-
-interface SubjectPerformance {
-	subject: string;
 	averageScore: number;
 }
 
@@ -18,9 +21,18 @@ interface AttendanceTrend {
 	attendanceRate: number;
 }
 
+interface ClassWithRelations extends Class {
+	students: StudentProfile[];
+	teachers: TeacherClass[];
+}
+
+interface ClassGroupDetailsViewProps {
+	classGroupId: string;
+}
+
 const validatePerformanceData = (data?: { data: PerformanceData[] }) => {
 	if (!data?.data?.length) return false;
-	return data.data.every(item => 
+	return data.data?.every(item => 
 		typeof item.averageScore === 'number' &&
 		typeof item.date === 'string'
 	);
@@ -28,105 +40,10 @@ const validatePerformanceData = (data?: { data: PerformanceData[] }) => {
 
 const validateAttendanceData = (data?: { trends: AttendanceTrend[] }) => {
 	if (!data?.trends?.length) return false;
-	return data.trends.every(item => 
+	return data.trends?.every(item => 
 		typeof item.attendanceRate === 'number' &&
 		typeof item.date === 'string'
 	);
-};
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { api } from "@/utils/api";
-import { LuUsers, LuBookOpen, LuGraduationCap, LuTrendingUp } from "react-icons/lu";
-import { DatePickerWithRange } from "@/components/ui/date-range-picker";
-import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
-import type { Class, TeacherClass, StudentProfile, Subject, ClassGroup, Status, CalendarType } from "@prisma/client";
-
-import { DateRange } from "react-day-picker";
-
-interface ClassWithRelations extends Class {
-	students: StudentProfile[];
-	teachers: TeacherClass[];
-}
-
-interface ClassGroupWithRelations extends ClassGroup {
-	program: {
-		classGroups: {
-			timetables: {
-				term: {
-					calendar: {
-						name: string;
-						id: string;
-						status: Status;
-						createdAt: Date;
-						updatedAt: Date;
-						description: string | null;
-						type: CalendarType;
-						academicYearId: string | null;
-					};
-				};
-			}[];
-		}[];
-	};
-	classes: ClassWithRelations[];
-	subjects: Subject[];
-	timetables: {
-		term: {
-			calendar: {
-				name: string;
-				id: string;
-				status: Status;
-				createdAt: Date;
-				updatedAt: Date;
-			};
-		};
-		periods: {
-			subject: Subject;
-			classroom: {
-				id: string;
-				name: string;
-			};
-		}[];
-	}[];
-	activities: {
-		id: string;
-		title: string;
-		status: string;
-	}[];
-}
-
-interface PerformanceData {
-    date: string;
-    averageScore: number;
-}
-
-interface SubjectPerformance {
-    subject: string;
-    averageScore: number;
-}
-
-interface AttendanceTrend {
-    date: string;
-    attendanceRate: number;
-}
-
-interface ClassGroupDetailsViewProps {
-    classGroupId: string;
-}
-
-const validatePerformanceData = (data?: { data: PerformanceData[] }) => {
-    if (!data?.data?.length) return false;
-    return data.data.every(item => 
-        typeof item.averageScore === 'number' &&
-        typeof item.date === 'string'
-    );
-};
-
-const validateAttendanceData = (data?: { trends: AttendanceTrend[] }) => {
-    if (!data?.trends?.length) return false;
-    return data.trends.every(item => 
-        typeof item.attendanceRate === 'number' &&
-        typeof item.date === 'string'
-    );
 };
 
 export const ClassGroupDetailsView = ({ classGroupId }: ClassGroupDetailsViewProps) => {
@@ -146,7 +63,7 @@ export const ClassGroupDetailsView = ({ classGroupId }: ClassGroupDetailsViewPro
 	}, {
 		enabled: !!dateRange.from && !!dateRange.to,
 		staleTime: 30000,
-		cacheTime: 60000,
+		gcTime: 60000,
 		retry: 2
 	});
 
@@ -157,7 +74,7 @@ export const ClassGroupDetailsView = ({ classGroupId }: ClassGroupDetailsViewPro
 	}, {
 		enabled: !!dateRange.from && !!dateRange.to,
 		staleTime: 30000,
-		cacheTime: 60000,
+		gcTime: 60000,
 		retry: 2
 	});
 
@@ -168,7 +85,7 @@ export const ClassGroupDetailsView = ({ classGroupId }: ClassGroupDetailsViewPro
 	}, {
 		enabled: !!dateRange.from && !!dateRange.to,
 		staleTime: 30000,
-		cacheTime: 60000,
+		gcTime: 60000,
 		retry: 2
 	});
 
@@ -222,7 +139,6 @@ export const ClassGroupDetailsView = ({ classGroupId }: ClassGroupDetailsViewPro
 								}
 							}}
 						/>
-
 					</div>
 				</CardContent>
 			</Card>
@@ -293,7 +209,7 @@ export const ClassGroupDetailsView = ({ classGroupId }: ClassGroupDetailsViewPro
 						<CardContent>
 							{validatePerformanceData(performanceTrends) ? (
 								<ResponsiveContainer width="100%" height={300}>
-									<LineChart data={performanceTrends.data}>
+									<LineChart data={performanceTrends?.data}>
 										<CartesianGrid strokeDasharray="3 3" />
 										<XAxis dataKey="date" />
 										<YAxis />
@@ -315,7 +231,6 @@ export const ClassGroupDetailsView = ({ classGroupId }: ClassGroupDetailsViewPro
 					</Card>
 				</TabsContent>
 
-				{/* Other tab contents will be implemented as we add the API endpoints */}
 				<TabsContent value="performance">
 					<Card>
 						<CardHeader>
@@ -345,7 +260,7 @@ export const ClassGroupDetailsView = ({ classGroupId }: ClassGroupDetailsViewPro
 						<CardContent>
 							{validateAttendanceData(attendanceStats) ? (
 								<ResponsiveContainer width="100%" height={300}>
-									<LineChart data={attendanceStats.trends}>
+									<LineChart data={attendanceStats?.trends}>
 										<CartesianGrid strokeDasharray="3 3" />
 										<XAxis dataKey="date" />
 										<YAxis />

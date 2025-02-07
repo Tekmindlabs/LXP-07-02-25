@@ -348,7 +348,7 @@ export const classRouter = createTRPCRouter({
 	getById: protectedProcedure
 		.input(z.string())
 		.query(async ({ ctx, input }) => {
-			return ctx.prisma.Class.findUnique({
+			return ctx.prisma.class.findUnique({
 				where: { id: input },
 				include: {
 					classGroup: true,
@@ -399,7 +399,7 @@ export const classRouter = createTRPCRouter({
 		}))
 		.query(({ ctx, input }) => {
 			const { search, ...filters } = input;
-			return ctx.prisma.Class.findMany({
+			return ctx.prisma.class.findMany({
 				where: {
 					...filters,
 					...(search && {
@@ -434,7 +434,7 @@ export const classRouter = createTRPCRouter({
 			const userId = ctx.session?.user?.id;
 			if (!userId) return [];
 
-			return ctx.prisma.Class.findMany({
+			return ctx.prisma.class.findMany({
 				where: {
 					teachers: {
 						some: {
@@ -472,5 +472,149 @@ export const classRouter = createTRPCRouter({
 					user: true
 				}
 			});
+		}),
+
+	getHistoricalAnalytics: protectedProcedure
+		.input(z.object({
+			id: z.string(),
+			startDate: z.date(),
+			endDate: z.date()
+		}))
+		.query(async ({ ctx, input }) => {
+			const { id, startDate, endDate } = input;
+
+			// Get historical student counts
+			const historicalStudents = await ctx.prisma.studentProfile.findMany({
+				where: {
+					classId: id,
+					createdAt: {
+						gte: startDate,
+						lte: endDate
+					}
+				}
+			});
+
+			// Calculate growth percentage
+			const studentGrowth = historicalStudents.length > 1 
+				? ((historicalStudents[historicalStudents.length - 1].id ? 1 : 0) - 
+				   (historicalStudents[0].id ? 1 : 0)) / 
+				  (historicalStudents[0].id ? 1 : 1) * 100
+				: 0;
+
+			return {
+				studentGrowth,
+				historicalData: historicalStudents
+			};
+		}),
+
+	getPerformanceTrends: protectedProcedure
+		.input(z.object({
+			id: z.string(),
+			startDate: z.date(),
+			endDate: z.date()
+		}))
+		.query(async ({ ctx, input }) => {
+			const { id, startDate, endDate } = input;
+
+			// Get all activities and submissions for the class
+			const activities = await ctx.prisma.classActivity.findMany({
+				where: {
+					classId: id,
+					createdAt: {
+						gte: startDate,
+						lte: endDate
+					}
+				},
+				include: {
+					submissions: true,
+					subject: true
+				}
+			});
+
+			// Calculate average scores by date
+			const performanceData = activities.map(activity => ({
+				date: activity.createdAt.toISOString().split('T')[0],
+				averageScore: activity.submissions.reduce((acc, sub) => 
+					acc + (sub.obtainedMarks / sub.totalMarks * 100), 0) / 
+					(activity.submissions.length || 1)
+			}));
+
+			// Calculate subject-wise performance
+			const subjectWise = activities.reduce((acc, activity) => {
+				const subjectName = activity.subject.name;
+				if (!acc[subjectName]) {
+					acc[subjectName] = {
+						subject: subjectName,
+						totalScore: 0,
+						count: 0
+					};
+				}
+				
+				const avgScore = activity.submissions.reduce((sum, sub) => 
+					sum + (sub.obtainedMarks / sub.totalMarks * 100), 0) / 
+					(activity.submissions.length || 1);
+				
+				acc[subjectName].totalScore += avgScore;
+				acc[subjectName].count += 1;
+				return acc;
+			}, {} as Record<string, { subject: string; totalScore: number; count: number; }>);
+
+			const subjectPerformance = Object.values(subjectWise).map(data => ({
+				subject: data.subject,
+				averageScore: data.totalScore / data.count
+			}));
+
+			return {
+				data: performanceData,
+				subjectWise: subjectPerformance
+			};
+		}),
+
+	getAttendanceStats: protectedProcedure
+		.input(z.object({
+			id: z.string(),
+			startDate: z.date(),
+			endDate: z.date()
+		}))
+		.query(async ({ ctx, input }) => {
+			const { id, startDate, endDate } = input;
+
+			// Get attendance records for the class
+			const attendance = await ctx.prisma.attendance.findMany({
+				where: {
+					student: {
+						classId: id
+					},
+					date: {
+						gte: startDate,
+						lte: endDate
+					}
+				}
+			});
+
+			// Calculate daily attendance rates
+			const attendanceByDate = attendance.reduce((acc, record) => {
+				const date = record.date.toISOString().split('T')[0];
+				if (!acc[date]) {
+					acc[date] = { present: 0, total: 0 };
+				}
+				acc[date].total += 1;
+				if (record.status === 'PRESENT') {
+					acc[date].present += 1;
+				}
+				return acc;
+			}, {} as Record<string, { present: number; total: number; }>);
+
+			const trends = Object.entries(attendanceByDate).map(([date, stats]) => ({
+				date,
+				attendanceRate: (stats.present / stats.total) * 100
+			}));
+
+			return {
+				trends,
+				averageAttendance: trends.length > 0 
+					? trends.reduce((acc, day) => acc + day.attendanceRate, 0) / trends.length 
+					: 0
+			};
 		}),
 });
