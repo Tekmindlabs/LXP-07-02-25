@@ -40,6 +40,13 @@ export const Permissions = {
   CLASS_ASSIGN_TEACHERS: "class:assign-teachers",
   CLASS_ASSIGN_STUDENTS: "class:assign-students",
 
+  // Gradebook permissions
+  GRADEBOOK_VIEW: "gradebook:view",
+  GRADEBOOK_OVERVIEW: "gradebook:overview",
+  GRADEBOOK_MANAGE: "gradebook:manage",
+  GRADE_ACTIVITY: "grade:activity",
+  GRADE_MODIFY: "grade:modify",
+
   // Subject Management permissions
   SUBJECT_VIEW: "subject:view",
   SUBJECT_MANAGE: "subject:manage",
@@ -73,16 +80,28 @@ export const RolePermissions: Record<Role, Permission[]> = {
     Permissions.SETTINGS_MANAGE,
     Permissions.CLASS_GROUP_VIEW,
     Permissions.CLASS_GROUP_MANAGE,
+    Permissions.GRADEBOOK_VIEW,
+    Permissions.GRADEBOOK_OVERVIEW,
+    Permissions.GRADEBOOK_MANAGE,
+    Permissions.GRADE_ACTIVITY,
+    Permissions.GRADE_MODIFY,
   ],
   [DefaultRoles.PROGRAM_COORDINATOR]: [
     Permissions.USER_READ,
     Permissions.USER_UPDATE,
     Permissions.CLASS_GROUP_VIEW,
     Permissions.CLASS_GROUP_MANAGE,
+    Permissions.GRADEBOOK_VIEW,
+    Permissions.GRADEBOOK_OVERVIEW,
+    Permissions.GRADEBOOK_MANAGE,
+    Permissions.GRADE_ACTIVITY,
   ],
   [DefaultRoles.TEACHER]: [
     Permissions.USER_READ,
     Permissions.CLASS_GROUP_VIEW,
+    Permissions.GRADE_ACTIVITY,
+    Permissions.GRADEBOOK_VIEW,
+    Permissions.GRADEBOOK_OVERVIEW,
   ],
   [DefaultRoles.STUDENT]: [
     Permissions.USER_READ,

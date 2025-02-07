@@ -1,7 +1,9 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { Status, Prisma } from "@prisma/client";
+import { createTRPCRouter, permissionProtectedProcedure } from "../trpc";
+import { Prisma } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
+import { Permissions } from "@/utils/permissions";
+import type { Session } from "next-auth";
 
 interface GradeData {
 	obtainedMarks: number;
@@ -16,7 +18,7 @@ interface GradeData {
 }
 
 export const gradebookRouter = createTRPCRouter({
-	getOverview: protectedProcedure
+	getOverview: permissionProtectedProcedure(Permissions.GRADEBOOK_OVERVIEW)
 		.input(z.object({ classId: z.string() }))
 		.query(async ({ ctx, input }) => {
 			try {
@@ -84,7 +86,7 @@ export const gradebookRouter = createTRPCRouter({
 			}
 		}),
 
-	getGrades: protectedProcedure
+	getGrades: permissionProtectedProcedure(Permissions.GRADEBOOK_VIEW)
 		.input(z.object({ classId: z.string() }))
 		.query(async ({ ctx, input }) => {
 			try {
@@ -141,7 +143,7 @@ export const gradebookRouter = createTRPCRouter({
 			}
 		}),
 
-	gradeActivity: protectedProcedure
+	gradeActivity: permissionProtectedProcedure(Permissions.GRADE_ACTIVITY)
 		.input(z.object({
 			activityId: z.string(),
 			studentId: z.string(),
@@ -151,22 +153,13 @@ export const gradebookRouter = createTRPCRouter({
 		}))
 		.mutation(async ({ ctx, input }) => {
 			try {
-				// Verify user has permission to grade
-				const userRole = await ctx.prisma.userRole.findFirst({
-					where: {
-						userId: ctx.session.user.id,
-						role: {
-							name: {
-								in: ['TEACHER', 'ADMIN', 'SUPER_ADMIN'].map(role => role.toLowerCase())
-							}
-						}
-					}
-				});
-
-				if (!userRole) {
+				// Since we're using permissionProtectedProcedure, we know session exists
+				// but we still need to check for type safety
+				const { session } = ctx;
+				if (!session?.user?.id) {
 					throw new TRPCError({
-						code: 'FORBIDDEN',
-						message: 'You do not have permission to grade activities',
+						code: 'UNAUTHORIZED',
+						message: 'User session not found',
 					});
 				}
 
@@ -194,7 +187,7 @@ export const gradebookRouter = createTRPCRouter({
 					obtainedMarks: input.obtainedMarks,
 					totalMarks: input.totalMarks,
 					feedback: input.feedback,
-					gradedBy: ctx.session.user.id,
+					gradedBy: session.user.id,
 					gradedAt: new Date(),
 					status: "GRADED",
 					content: {} as Prisma.InputJsonValue,

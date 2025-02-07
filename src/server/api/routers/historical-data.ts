@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { createTRPCRouter, permissionProtectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
+import { Permissions } from "@/utils/permissions";
 import { 
 	type HistoricalStudentRecord,
 	type VersionedRecord,
@@ -9,7 +10,7 @@ import {
 } from "../../../types/historical-data";
 
 export const historicalDataRouter = createTRPCRouter({
-	getStudentHistory: protectedProcedure
+	getStudentHistory: permissionProtectedProcedure(Permissions.GRADEBOOK_VIEW)
 		.input(z.object({
 			studentId: z.string(),
 			startDate: z.date(),
@@ -27,7 +28,7 @@ export const historicalDataRouter = createTRPCRouter({
 			return historicalRecords;
 		}),
 
-	getVersionHistory: protectedProcedure
+	getVersionHistory: permissionProtectedProcedure(Permissions.GRADEBOOK_VIEW)
 		.input(z.object({
 			entityId: z.string(),
 			entityType: z.enum(['STUDENT', 'TEACHER', 'CLASS'])
@@ -41,7 +42,7 @@ export const historicalDataRouter = createTRPCRouter({
 			return versions;
 		}),
 
-	getPerformanceMetrics: protectedProcedure
+	getPerformanceMetrics: permissionProtectedProcedure(Permissions.GRADEBOOK_VIEW)
 		.input(z.object({
 			studentId: z.string(),
 			periodStart: z.date(),
@@ -75,7 +76,7 @@ export const historicalDataRouter = createTRPCRouter({
 			};
 		}),
 
-	applyRetentionPolicy: protectedProcedure
+	applyRetentionPolicy: permissionProtectedProcedure(Permissions.GRADEBOOK_MANAGE)
 		.input(z.object({
 			entityType: z.string(),
 			olderThan: z.date()
@@ -96,7 +97,7 @@ export const historicalDataRouter = createTRPCRouter({
 			});
 		}),
 
-	createHistoricalRecord: protectedProcedure
+	createHistoricalRecord: permissionProtectedProcedure(Permissions.GRADEBOOK_MANAGE)
 		.input(historicalStudentRecordSchema)
 		.mutation(async ({ ctx, input }) => {
 			return ctx.prisma.historicalStudentRecord.create({ data: input });
