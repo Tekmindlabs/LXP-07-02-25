@@ -316,6 +316,7 @@ model Class {
   teachers     TeacherClass[]
   activities   ClassActivity[]
   timetables   Timetable[]
+  attendance   Attendance[]     // Add this line
   status       Status           @default(ACTIVE)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
@@ -415,14 +416,17 @@ model Attendance {
   id        String           @id @default(cuid())
   student   StudentProfile   @relation(fields: [studentId], references: [id])
   studentId String
+  class     Class           @relation(fields: [classId], references: [id])
+  classId   String
   date      DateTime
   status    AttendanceStatus
   notes     String?
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
-    @@unique([studentId, date])
-    
+  @@unique([studentId, date])
+  @@index([classId])
+  @@index([date])
 }
 
 // Activity & Assessment Models

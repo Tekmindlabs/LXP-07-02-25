@@ -96,14 +96,14 @@ getStats: protectedProcedure.query(async ({ ctx }) => {
                     COUNT(CASE WHEN status = 'PRESENT' THEN 1 END) as present_count,
                     COUNT(CASE WHEN status = 'ABSENT' THEN 1 END) as absent_count,
                     COUNT(*) as total_count
-                FROM Attendance
+                FROM attendance
                 WHERE date >= ${startOfDay(today)} AND date <= ${endOfDay(today)}
             `,
             // Weekly attendance percentage
             ctx.prisma.$queryRaw<any[]>`
                 SELECT 
                     COUNT(CASE WHEN status = 'PRESENT' THEN 1 END) * 100.0 / COUNT(*) as percentage
-                FROM Attendance
+                FROM attendance
                 WHERE date >= ${weekStart} AND date <= ${today}
             `,
             // Most absent students with details
@@ -112,9 +112,9 @@ getStats: protectedProcedure.query(async ({ ctx }) => {
                     s.id as student_id,
                     u.name as student_name,
                     COUNT(*) as absence_count
-                FROM Attendance a
-                JOIN StudentProfile s ON a.studentId = s.id
-                JOIN User u ON s.userId = u.id
+                FROM attendance a
+                JOIN student_profiles s ON a.studentId = s.id
+                JOIN users u ON s.userId = u.id
                 WHERE a.status = 'ABSENT'
                     AND a.date >= ${subDays(today, 30)}
                 GROUP BY s.id, u.name
@@ -126,9 +126,9 @@ getStats: protectedProcedure.query(async ({ ctx }) => {
                 SELECT 
                     c.name as class_name,
                     COUNT(CASE WHEN a.status = 'PRESENT' THEN 1 END) * 100.0 / COUNT(*) as attendance_percentage
-                FROM Attendance a
-                JOIN StudentProfile s ON a.studentId = s.id
-                JOIN Class c ON s.classId = c.id
+                FROM attendance a
+                JOIN student_profiles s ON a.studentId = s.id
+                JOIN classes c ON s.classId = c.id
                 WHERE a.date = ${today}
                 GROUP BY c.name
                 ORDER BY attendance_percentage ASC
@@ -185,7 +185,7 @@ getDashboardData: protectedProcedure.query(async ({ ctx }) => {
                 SELECT 
                     DATE(date) as date,
                     COUNT(CASE WHEN status = 'PRESENT' THEN 1 END) * 100.0 / COUNT(*) as percentage
-                FROM Attendance
+                FROM attendance
                 WHERE date >= ${lastWeek} AND date <= ${today}
                 GROUP BY DATE(date)
                 ORDER BY date ASC
@@ -195,9 +195,9 @@ getDashboardData: protectedProcedure.query(async ({ ctx }) => {
                     c.name as className,
                     COUNT(CASE WHEN a.status = 'PRESENT' THEN 1 END) as present_count,
                     COUNT(CASE WHEN a.status = 'ABSENT' THEN 1 END) as absent_count
-                FROM Attendance a
-                JOIN StudentProfile s ON a.studentId = s.id
-                JOIN Class c ON s.classId = c.id
+                FROM attendance a
+                JOIN student_profiles s ON a.studentId = s.id
+                JOIN classes c ON s.classId = c.id
                 WHERE a.date >= ${lastWeek} AND date <= ${today}
                 GROUP BY c.name
             `

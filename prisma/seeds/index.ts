@@ -8,6 +8,7 @@ import { seedClasses } from './classes';
 import { seedClassrooms } from './classrooms';
 import { seedTimetables } from './timetables';
 import { seedActivities } from './activities';
+import { seedAttendance } from './attendance';
 
 const prisma = new PrismaClient();
 
@@ -32,6 +33,9 @@ async function seedDemoData() {
 		
 		// Create classes
 		const classes = await seedClasses(prisma, classGroups);
+		
+		// Seed attendance data after classes are created
+		await seedAttendance(prisma);
 		
 		// Create classrooms
 		const classrooms = await seedClassrooms(prisma);

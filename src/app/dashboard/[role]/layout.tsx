@@ -186,7 +186,7 @@ export default async function RoleLayout({
 	}
 
 	const userRoles = session.user.roles.map((r) => r.toLowerCase());
-	const currentRole = (await Promise.resolve(params.role)).toLowerCase();
+	const currentRole = params.role.toLowerCase();
 
 	if (!currentRole || !userRoles.includes(currentRole)) {
 		redirect(`/dashboard/${userRoles[0]?.toLowerCase() ?? ''}`);
