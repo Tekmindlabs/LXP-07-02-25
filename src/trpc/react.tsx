@@ -14,8 +14,14 @@ export function TRPCReactProvider(props: { children: React.ReactNode; cookies: s
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
-        retry: false,
+        retry: 1,
         refetchOnWindowFocus: false,
+        staleTime: 5 * 60 * 1000, // 5 minutes
+        onError: (error: unknown) => {
+          if (error instanceof Error) {
+            console.error('Query error:', error);
+          }
+        },
       },
     },
   }));

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { Status } from "@prisma/client";
 import { TRPCError } from "@trpc/server";
+import { DefaultRoles } from '@/utils/permissions';
 
 export const classRouter = createTRPCRouter({
 	createClass: protectedProcedure
@@ -266,7 +267,7 @@ export const classRouter = createTRPCRouter({
 			// Check user roles and permissions
 			const userRoles = ctx.session?.user?.roles || [];
 			const hasAccess = userRoles.some(role => 
-				['ADMIN', 'SUPER_ADMIN', 'TEACHER'].includes(role)
+				[DefaultRoles.ADMIN, DefaultRoles.SUPER_ADMIN, DefaultRoles.TEACHER].includes(role)
 			);
 
 			if (!hasAccess) {
@@ -278,7 +279,7 @@ export const classRouter = createTRPCRouter({
 
 			try {
 				// For teachers, only return their assigned classes
-				if (userRoles.includes('TEACHER') && !userRoles.some(role => ['ADMIN', 'SUPER_ADMIN'].includes(role))) {
+				if (userRoles.includes(DefaultRoles.TEACHER) && !userRoles.some(role => [DefaultRoles.ADMIN, DefaultRoles.SUPER_ADMIN].includes(role))) {
 					return ctx.prisma.class.findMany({
 						where: {
 							teachers: {

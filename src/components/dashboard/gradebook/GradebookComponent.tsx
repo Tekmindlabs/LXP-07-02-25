@@ -2,25 +2,31 @@ import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/utils/api";
 import { ActivityWithBasicSubmissions } from "@/types/class-activity";
+import { GradebookOverview } from './GradebookOverview';
+import { StudentGrades } from './StudentGrades';
 
 interface GradebookProps {
 	classId: string;
 	type?: 'student' | 'teacher';
 }
 
-
 export const GradebookComponent: React.FC<GradebookProps> = ({ classId, type }) => {
 	const [activeTab, setActiveTab] = useState<'overview' | 'activities' | 'grades'>('overview');
-	const { data: activities, isLoading, error } = api.classActivity.getAll.useQuery({
+	
+	const { data: activities, isLoading: activitiesLoading } = api.classActivity.getAll.useQuery({
 		classId,
-	}) as { data: ActivityWithBasicSubmissions[] | undefined, isLoading: boolean, error: Error | null };
+	});
 
-	if (isLoading) {
+	const { data: overviewData, isLoading: overviewLoading } = api.gradebook.getOverview.useQuery({
+		classId,
+	});
+
+	const { data: gradesData, isLoading: gradesLoading } = api.gradebook.getGrades.useQuery({
+		classId,
+	});
+
+	if (activitiesLoading || overviewLoading || gradesLoading) {
 		return <div>Loading...</div>;
-	}
-
-	if (error) {
-		return <div>Error loading gradebook: {error.message}</div>;
 	}
 
 	return (
@@ -32,7 +38,7 @@ export const GradebookComponent: React.FC<GradebookProps> = ({ classId, type }) 
 					<TabsTrigger value="grades">Grades</TabsTrigger>
 				</TabsList>
 				<TabsContent value="overview">
-					{/* Overview content */}
+					<GradebookOverview data={overviewData} />
 				</TabsContent>
 				<TabsContent value="activities">
 					{activities?.map(activity => (
@@ -43,7 +49,7 @@ export const GradebookComponent: React.FC<GradebookProps> = ({ classId, type }) 
 					))}
 				</TabsContent>
 				<TabsContent value="grades">
-					{/* Grades content */}
+					<StudentGrades grades={gradesData?.studentGrades} />
 				</TabsContent>
 			</Tabs>
 		</div>

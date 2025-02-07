@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -33,13 +33,32 @@ type PageProps = {
 type FormData = z.infer<typeof formSchema>;
 
 export default function EditStudentPage({ params }: PageProps) {
-	const { role, studentId } = use(params as PageProps['params']);
+	const { role, studentId } = params;
 	const router = useRouter();
 	const { toast } = useToast();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	
-	const { data: classes = [] } = api.class.list.useQuery();
-	const { data: student, isLoading } = api.student.getStudent.useQuery(studentId);
+	const { 
+		data: classes = [], 
+		isLoading: classesLoading,
+		error: classesError 
+	} = api.class.list.useQuery(undefined, {
+		retry: 1
+	});
+
+	const { data: student, isLoading } = api.student.getStudent.useQuery(studentId, {
+		retry: 1
+	});
+
+	useEffect(() => {
+		if (classesError) {
+			toast({
+				title: 'Error',
+				description: classesError.message || 'Failed to load classes',
+				variant: 'destructive',
+			});
+		}
+	}, [classesError, toast]);
 	
 	const updateStudentMutation = api.student.updateStudent.useMutation({
 		onSuccess: () => {
@@ -225,16 +244,28 @@ export default function EditStudentPage({ params }: PageProps) {
 								<div className="space-y-2">
 									<FormLabel>Class</FormLabel>
 									<FormControl>
-										<Select value={field.value} onValueChange={field.onChange}>
+										<Select 
+											value={field.value} 
+											onValueChange={field.onChange}
+											disabled={classesLoading}
+										>
 											<SelectTrigger>
-												<SelectValue placeholder="Select class" />
+												<SelectValue placeholder={classesLoading ? "Loading..." : "Select class"} />
 											</SelectTrigger>
 											<SelectContent>
-												{classes.map((cls) => (
-													<SelectItem key={cls.id} value={cls.id}>
-														{cls.name}
-													</SelectItem>
-												))}
+												{classesError ? (
+													<SelectItem value="" disabled>Error loading classes</SelectItem>
+												) : classesLoading ? (
+													<SelectItem value="" disabled>Loading classes...</SelectItem>
+												) : classes.length === 0 ? (
+													<SelectItem value="" disabled>No classes available</SelectItem>
+												) : (
+													classes.map((cls) => (
+														<SelectItem key={cls.id} value={cls.id}>
+															{cls.name}
+														</SelectItem>
+													))
+												)}
 											</SelectContent>
 										</Select>
 									</FormControl>

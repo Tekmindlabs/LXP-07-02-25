@@ -32,6 +32,7 @@ export interface ActivityGrade {
 	activityId: string;
 	activityName: string;
 	grade: number;
+	totalPoints: number;
 }
 
 

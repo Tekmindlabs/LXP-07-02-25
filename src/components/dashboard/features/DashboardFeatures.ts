@@ -2,7 +2,7 @@ import { DefaultRoles } from "@/utils/permissions";
 import { DashboardFeature } from "@/types/dashboard";
 
 export const DashboardFeatures: Record<keyof typeof DefaultRoles, DashboardFeature[]> = {
-  "SUPER_ADMIN": [
+  [DefaultRoles.SUPER_ADMIN]: [
     'system-metrics',
     'user-management',
     'role-management',
@@ -14,7 +14,7 @@ export const DashboardFeatures: Record<keyof typeof DefaultRoles, DashboardFeatu
     'class-activity-management',
     'knowledge-base'
   ],
-  "ADMIN": [
+  [DefaultRoles.ADMIN]: [
     'user-management',
     'audit-logs',
     'timetable-management',
@@ -22,14 +22,14 @@ export const DashboardFeatures: Record<keyof typeof DefaultRoles, DashboardFeatu
     'class-activity-management',
     'knowledge-base'
   ],
-  "PROGRAM_COORDINATOR": [
+  [DefaultRoles.PROGRAM_COORDINATOR]: [
     'class-management',
     'student-progress',
     'timetable-management',
     'class-activity-management',
     'knowledge-base'
   ],
-  "TEACHER": [
+  [DefaultRoles.TEACHER]: [
     'class-management',
     'student-progress',
     'assignments',
@@ -37,13 +37,13 @@ export const DashboardFeatures: Record<keyof typeof DefaultRoles, DashboardFeatu
     'class-activity-management',
     'knowledge-base'
   ],
-  "STUDENT": [
+  [DefaultRoles.STUDENT]: [
     'assignments',
     'student-progress',
     'class-activities',
     'knowledge-base'
   ],
-  "PARENT": [
+  [DefaultRoles.PARENT]: [
     'student-progress',
     'class-activities'
   ]

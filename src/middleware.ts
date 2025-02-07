@@ -2,6 +2,7 @@ import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import type { DefaultJWT } from "next-auth/jwt";
+import { DefaultRoles } from "@/utils/permissions";
 
 interface CustomJWT extends DefaultJWT {
   roles: string[];
@@ -44,8 +45,11 @@ export default withAuth(
       const urlRole = req.nextUrl.pathname.split('/')[2]; // Get role from URL
       const userRole = token.roles?.[0];
       
-      // If accessing a role-specific route that doesn't match user's role
-      if (urlRole && urlRole !== userRole) {
+      // Validate if urlRole is a valid role
+      const isValidRole = Object.values(DefaultRoles).includes(urlRole as string);
+      
+      // If accessing a role-specific route that doesn't match user's role or is invalid
+      if (urlRole && (urlRole !== userRole || !isValidRole)) {
       return NextResponse.redirect(new URL(`/dashboard/${userRole}`, req.url));
       }
       
@@ -57,7 +61,7 @@ export default withAuth(
 
     // Redirect authenticated users away from auth pages
     if (isAuth && isAuthPage) {
-      const role = token.roles?.[0] || 'user';
+      const role = token.roles?.[0] || DefaultRoles.STUDENT;
       return NextResponse.redirect(new URL(`/dashboard/${role}`, req.url));
     }
 
