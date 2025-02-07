@@ -197,7 +197,7 @@ export const classGroupRouter = createTRPCRouter({
 	getClassGroupWithDetails: protectedProcedure
 		.input(z.string())
 		.query(async ({ ctx, input }) => {
-			return ctx.prisma.ClassGroup.findUnique({
+			return ctx.prisma.classGroup.findUnique({
 				where: { id: input },
 				include: {
 					program: {
@@ -274,7 +274,7 @@ export const classGroupRouter = createTRPCRouter({
 			});
 
 			// Inherit subjects to all classes in the group
-			const classes = await ctx.prisma.Class.findMany({
+			const classes = await ctx.prisma.class.findMany({
 				where: { classGroupId },
 			});
 
@@ -285,7 +285,7 @@ export const classGroupRouter = createTRPCRouter({
 				});
 
 				if (timetable) {
-					await ctx.prisma.Period.createMany({
+					await ctx.prisma.period.createMany({
 						data: subjectIds.map(subjectId => ({
 							timetableId: timetable.id,
 							subjectId,
@@ -312,7 +312,7 @@ export const classGroupRouter = createTRPCRouter({
 			const { classGroupId, subjectIds } = input;
 
 			// Remove subjects from class group
-			return ctx.prisma.ClassGroup.update({
+			return ctx.prisma.classGroup.update({
 				where: { id: classGroupId },
 				data: {
 					subjects: {
@@ -335,7 +335,7 @@ export const classGroupRouter = createTRPCRouter({
 			const { classGroupId, calendarId, classId } = input;
 
 			// Get the calendar and its terms
-			const calendar = await ctx.prisma.Calendar.findUnique({
+			const calendar = await ctx.prisma.calendar.findUnique({
 				where: { id: calendarId },
 				include: {
 					terms: true,
@@ -352,7 +352,7 @@ export const classGroupRouter = createTRPCRouter({
 				throw new Error("No terms found in calendar");
 			}
 
-			const timetable = await ctx.prisma.Timetable.create({
+			const _timetable = await ctx.prisma.timetable.create({
 				data: {
 					termId: term.id,
 					classGroupId,
@@ -378,7 +378,7 @@ export const classGroupRouter = createTRPCRouter({
 
 	list: protectedProcedure
 		.query(({ ctx }) => {
-			return ctx.prisma.ClassGroup.findMany({
+			return ctx.prisma.classGroup.findMany({
 				include: {
 					program: true,
 					classes: true,
@@ -452,7 +452,7 @@ export const classGroupRouter = createTRPCRouter({
 			classId: z.string()
 		}))
 		.mutation(async ({ ctx, input }) => {
-			const existingTimetable = await ctx.prisma.Timetable.findFirst({
+			const existingTimetable = await ctx.prisma.timetable.findFirst({
 				where: { classGroupId: input.classGroupId },
 			});
 
@@ -483,5 +483,163 @@ export const classGroupRouter = createTRPCRouter({
 					}
 				}
 			});
+		}),
+
+	getHistoricalAnalytics: protectedProcedure
+		.input(z.object({
+			id: z.string(),
+			startDate: z.date(),
+			endDate: z.date()
+		}))
+		.query(async ({ ctx, input }) => {
+			const { id, startDate, endDate } = input;
+
+			// Get historical student counts
+			const historicalStudents = await ctx.prisma.historicalStudentRecord.findMany({
+				where: {
+					studentId: {
+						in: (await ctx.prisma.class.findMany({
+							where: { classGroupId: id },
+							include: { students: true }
+						})).flatMap(c => c.students.map(s => s.userId))
+					},
+					timestamp: {
+						gte: startDate,
+						lte: endDate
+					}
+				}
+			});
+
+			// Calculate growth percentage
+			const studentGrowth = historicalStudents.length > 0 
+				? ((Array.isArray(historicalStudents[historicalStudents.length - 1]?.grades) 
+					? (historicalStudents[historicalStudents.length - 1]?.grades as any[])?.length || 0
+					: 0) - 
+				   (Array.isArray(historicalStudents[0]?.grades)
+					? (historicalStudents[0]?.grades as any[])?.length || 0
+					: 0)) / 
+				  (Array.isArray(historicalStudents[0]?.grades)
+					? (historicalStudents[0]?.grades as any[])?.length || 1
+					: 1) * 100
+				: 0;
+
+			return {
+				studentGrowth,
+				historicalData: historicalStudents
+			};
+		}),
+
+	getPerformanceTrends: protectedProcedure
+		.input(z.object({
+			id: z.string(),
+			startDate: z.date(),
+			endDate: z.date()
+		}))
+		.query(async ({ ctx, input }) => {
+			const { id, startDate, endDate } = input;
+
+			// Get all activities and their submissions for the class group
+			const activities = await ctx.prisma.classActivity.findMany({
+				where: {
+					classGroupId: id,
+					createdAt: {
+						gte: startDate,
+						lte: endDate
+					}
+				},
+				include: {
+					submissions: true,
+					subject: true
+				}
+			});
+
+			// Calculate average scores by date
+			const performanceData = activities.map(activity => ({
+				date: activity.createdAt.toISOString().split('T')[0],
+				averageScore: activity.submissions.reduce((acc, sub) => acc + (sub.obtainedMarks / sub.totalMarks * 100), 0) / 
+							 (activity.submissions.length || 1)
+			}));
+
+			// Calculate subject-wise performance
+			const subjectWise = activities.reduce((acc, activity) => {
+				const subjectName = activity.subject.name;
+				if (!acc[subjectName]) {
+					acc[subjectName] = {
+						subject: subjectName,
+						totalScore: 0,
+						count: 0
+					};
+				}
+				
+				const avgScore = activity.submissions.reduce((sum, sub) => 
+					sum + (sub.obtainedMarks / sub.totalMarks * 100), 0) / 
+					(activity.submissions.length || 1);
+				
+				acc[subjectName].totalScore += avgScore;
+				acc[subjectName].count += 1;
+				return acc;
+			}, {} as Record<string, { subject: string; totalScore: number; count: number; }>);
+
+			const subjectPerformance = Object.values(subjectWise).map(data => ({
+				subject: data.subject,
+				averageScore: data.totalScore / data.count
+			}));
+
+			return {
+				data: performanceData,
+				subjectWise: subjectPerformance
+			};
+		}),
+
+	getAttendanceStats: protectedProcedure
+		.input(z.object({
+			id: z.string(),
+			startDate: z.date(),
+			endDate: z.date()
+		}))
+		.query(async ({ ctx, input }) => {
+			const { id, startDate, endDate } = input;
+
+			// Get all students in the class group
+			const students = await ctx.prisma.class.findMany({
+				where: { classGroupId: id },
+				include: { students: true }
+			});
+
+			const studentIds = students.flatMap(c => c.students.map(s => s.id));
+
+			// Get attendance records
+			const attendance = await ctx.prisma.attendance.findMany({
+				where: {
+					studentId: { in: studentIds },
+					date: {
+						gte: startDate,
+						lte: endDate
+					}
+				}
+			});
+
+			// Calculate daily attendance rates
+			const attendanceByDate = attendance.reduce((acc, record) => {
+				const date = record.date.toISOString().split('T')[0];
+				if (!acc[date]) {
+					acc[date] = { present: 0, total: 0 };
+				}
+				acc[date].total += 1;
+				if (record.status === 'PRESENT') {
+					acc[date].present += 1;
+				}
+				return acc;
+			}, {} as Record<string, { present: number; total: number; }>);
+
+			const trends = Object.entries(attendanceByDate).map(([date, stats]) => ({
+				date,
+				attendanceRate: (stats.present / stats.total) * 100
+			}));
+
+			return {
+				trends,
+				averageAttendance: trends.reduce((acc, day) => acc + day.attendanceRate, 0) / trends.length
+			};
 		}),
 });

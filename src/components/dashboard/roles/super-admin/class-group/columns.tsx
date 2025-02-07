@@ -3,7 +3,7 @@
 import { ColumnDef } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Edit, Trash } from "lucide-react"
+import { Edit, Eye } from "lucide-react"
 
 // Define the type for class group data based on the existing components
 interface ClassGroup {
@@ -70,20 +70,26 @@ export const columns: ColumnDef<ClassGroup>[] = [
     cell: ({ row }) => {
       const classGroup = row.original
       return (
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => {
-              if (classGroup.program?.id) {
-              window.location.href = `/dashboard/[role]/program/${classGroup.program.id}`.replace('[role]', 'super-admin')
-              }
-            }}
-
-          >
-            <Edit className="h-4 w-4" />
-          </Button>
-        </div>
+      <div className="flex items-center gap-2">
+        <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => {
+          window.location.href = `/dashboard/super-admin/class-group/${classGroup.id}/view`
+        }}
+        >
+        <Eye className="h-4 w-4" />
+        </Button>
+        <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => {
+          window.location.href = `/dashboard/super-admin/class-group/${classGroup.id}/edit`
+        }}
+        >
+        <Edit className="h-4 w-4" />
+        </Button>
+      </div>
       )
     }
   }

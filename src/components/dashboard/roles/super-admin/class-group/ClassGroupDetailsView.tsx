@@ -1,0 +1,279 @@
+'use client';
+
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { api } from "@/utils/api";
+import { LuUsers, LuBookOpen, LuGraduationCap, LuTrendingUp } from "react-icons/lu";
+import { DatePickerWithRange } from "@/components/ui/date-range-picker";
+import { ResponsiveContainer, LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import type { Class, TeacherClass, StudentProfile, Subject, ClassGroup, Status, CalendarType } from "@prisma/client";
+
+import { DateRange } from "react-day-picker";
+
+interface ClassWithRelations extends Class {
+	students: StudentProfile[];
+	teachers: TeacherClass[];
+}
+
+interface ClassGroupWithRelations extends ClassGroup {
+	program: {
+		classGroups: {
+			timetables: {
+				term: {
+					calendar: {
+						name: string;
+						id: string;
+						status: Status;
+						createdAt: Date;
+						updatedAt: Date;
+						description: string | null;
+						type: CalendarType;
+						academicYearId: string | null;
+					};
+				};
+			}[];
+		}[];
+	};
+	classes: ClassWithRelations[];
+	subjects: Subject[];
+	timetables: {
+		term: {
+			calendar: {
+				name: string;
+				id: string;
+				status: Status;
+				createdAt: Date;
+				updatedAt: Date;
+			};
+		};
+		periods: {
+			subject: Subject;
+			classroom: {
+				id: string;
+				name: string;
+			};
+		}[];
+	}[];
+	activities: {
+		id: string;
+		title: string;
+		status: string;
+	}[];
+}
+
+interface ClassGroupDetailsViewProps {
+	classGroupId: string;
+}
+
+export const ClassGroupDetailsView = ({ classGroupId }: ClassGroupDetailsViewProps) => {
+	const [dateRange, setDateRange] = useState<DateRange>({
+		from: new Date(new Date().setMonth(new Date().getMonth() - 1)),
+		to: new Date()
+	});
+
+	const { data: classGroup, isLoading } = api.classGroup.getClassGroupWithDetails.useQuery(
+		classGroupId
+	);
+
+	const { data: historicalData } = api.classGroup.getHistoricalAnalytics.useQuery({
+		id: classGroupId,
+		startDate: dateRange.from!,
+		endDate: dateRange.to!
+	}, {
+		enabled: !!dateRange.from && !!dateRange.to
+	});
+
+	const { data: performanceTrends } = api.classGroup.getPerformanceTrends.useQuery({
+		id: classGroupId,
+		startDate: dateRange.from!,
+		endDate: dateRange.to!
+	}, {
+		enabled: !!dateRange.from && !!dateRange.to
+	});
+
+	const { data: attendanceStats } = api.classGroup.getAttendanceStats.useQuery({
+		id: classGroupId,
+		startDate: dateRange.from!,
+		endDate: dateRange.to!
+	}, {
+		enabled: !!dateRange.from && !!dateRange.to
+	});
+
+	if (isLoading) {
+		return (
+			<div className="flex items-center justify-center p-8">
+				<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+			</div>
+		);
+	}
+
+	if (!classGroup) {
+		return (
+			<div className="p-4 text-center">
+				<p className="text-destructive">Failed to load class group details.</p>
+			</div>
+		);
+	}
+
+	// Calculate current analytics with proper typing
+	const totalStudents = classGroup.classes.reduce((acc: number, cls: ClassWithRelations) => 
+		acc + cls.students.length, 0);
+	const totalTeachers = classGroup.classes.reduce((acc: number, cls: ClassWithRelations) => 
+		acc + cls.teachers.length, 0);
+	const totalSubjects = classGroup.subjects.length;
+
+	return (
+		<div className="space-y-6">
+			{/* Header Section */}
+			<div className="flex justify-between items-center">
+				<h1 className="text-2xl font-bold">{classGroup.name}</h1>
+				<Badge variant={classGroup.status === "ACTIVE" ? "default" : "secondary"}>
+					{classGroup.status}
+				</Badge>
+			</div>
+
+			{/* Date Range Picker */}
+			<Card>
+				<CardContent className="p-4">
+					<div className="flex items-center justify-between">
+						<h3 className="font-semibold">Analytics Period</h3>
+						<DatePickerWithRange
+							value={dateRange}
+							onChange={(range) => {
+								if (range?.from && range?.to) {
+									setDateRange(range);
+								}
+							}}
+						/>
+
+					</div>
+				</CardContent>
+			</Card>
+
+			{/* Statistics Cards */}
+			<div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+				<Card>
+					<CardHeader className="flex flex-row items-center justify-between pb-2">
+						<CardTitle className="text-sm font-medium">Total Students</CardTitle>
+						<LuUsers className="h-4 w-4 text-muted-foreground" />
+					</CardHeader>
+					<CardContent>
+						<div className="text-2xl font-bold">{totalStudents}</div>
+						{historicalData?.studentGrowth && (
+							<p className={`text-sm ${historicalData.studentGrowth > 0 ? 'text-green-600' : 'text-red-600'}`}>
+								{historicalData.studentGrowth > 0 ? '+' : ''}{historicalData.studentGrowth.toFixed(1)}% from last period
+							</p>
+						)}
+					</CardContent>
+				</Card>
+				
+				<Card>
+					<CardHeader className="flex flex-row items-center justify-between pb-2">
+						<CardTitle className="text-sm font-medium">Total Teachers</CardTitle>
+						<LuGraduationCap className="h-4 w-4 text-muted-foreground" />
+					</CardHeader>
+					<CardContent>
+						<div className="text-2xl font-bold">{totalTeachers}</div>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader className="flex flex-row items-center justify-between pb-2">
+						<CardTitle className="text-sm font-medium">Total Subjects</CardTitle>
+						<LuBookOpen className="h-4 w-4 text-muted-foreground" />
+					</CardHeader>
+					<CardContent>
+						<div className="text-2xl font-bold">{totalSubjects}</div>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader className="flex flex-row items-center justify-between pb-2">
+						<CardTitle className="text-sm font-medium">Average Performance</CardTitle>
+						<LuTrendingUp className="h-4 w-4 text-muted-foreground" />
+					</CardHeader>
+					<CardContent>
+						<div className="text-2xl font-bold">--</div>
+					</CardContent>
+				</Card>
+			</div>
+
+			{/* Tabs Section */}
+			<Tabs defaultValue="overview" className="space-y-4">
+				<TabsList>
+					<TabsTrigger value="overview">Overview</TabsTrigger>
+					<TabsTrigger value="performance">Performance</TabsTrigger>
+					<TabsTrigger value="attendance">Attendance</TabsTrigger>
+					<TabsTrigger value="activities">Activities</TabsTrigger>
+					<TabsTrigger value="classes">Classes</TabsTrigger>
+				</TabsList>
+
+				<TabsContent value="overview">
+					<Card>
+						<CardHeader>
+							<CardTitle>Performance Overview</CardTitle>
+						</CardHeader>
+						<CardContent>
+							{performanceTrends?.data && (
+								<ResponsiveContainer width="100%" height={300}>
+									<LineChart data={performanceTrends.data}>
+										<CartesianGrid strokeDasharray="3 3" />
+										<XAxis dataKey="date" />
+										<YAxis />
+										<Tooltip />
+										<Line type="monotone" dataKey="averageScore" stroke="#8884d8" />
+									</LineChart>
+								</ResponsiveContainer>
+							)}
+						</CardContent>
+					</Card>
+				</TabsContent>
+
+				{/* Other tab contents will be implemented as we add the API endpoints */}
+				<TabsContent value="performance">
+					<Card>
+						<CardHeader>
+							<CardTitle>Subject-wise Performance</CardTitle>
+						</CardHeader>
+						<CardContent>
+							{performanceTrends?.subjectWise && (
+								<ResponsiveContainer width="100%" height={300}>
+									<BarChart data={performanceTrends.subjectWise}>
+										<CartesianGrid strokeDasharray="3 3" />
+										<XAxis dataKey="subject" />
+										<YAxis />
+										<Tooltip />
+										<Bar dataKey="averageScore" fill="#8884d8" />
+									</BarChart>
+								</ResponsiveContainer>
+							)}
+						</CardContent>
+					</Card>
+				</TabsContent>
+
+				<TabsContent value="attendance">
+					<Card>
+						<CardHeader>
+							<CardTitle>Attendance Trends</CardTitle>
+						</CardHeader>
+						<CardContent>
+							{attendanceStats?.trends && (
+								<ResponsiveContainer width="100%" height={300}>
+									<LineChart data={attendanceStats.trends}>
+										<CartesianGrid strokeDasharray="3 3" />
+										<XAxis dataKey="date" />
+										<YAxis />
+										<Tooltip />
+										<Line type="monotone" dataKey="attendanceRate" stroke="#82ca9d" />
+									</LineChart>
+								</ResponsiveContainer>
+							)}
+						</CardContent>
+					</Card>
+				</TabsContent>
+			</Tabs>
+		</div>
+	);
+};
