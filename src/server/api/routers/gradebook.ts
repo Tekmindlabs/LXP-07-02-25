@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { Status } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
 
 export const gradebookRouter = createTRPCRouter({
 	getOverview: protectedProcedure
@@ -93,5 +94,61 @@ export const gradebookRouter = createTRPCRouter({
 			});
 
 			return { studentGrades };
-		})
+		}),
+
+	gradeActivity: protectedProcedure
+		.input(z.object({
+			activityId: z.string(),
+			studentId: z.string(),
+			obtainedMarks: z.number().min(0),
+			totalMarks: z.number().min(0),
+			feedback: z.string().optional(),
+		}))
+		.mutation(async ({ ctx, input }) => {
+			// Verify user has permission to grade
+			const userRole = await ctx.prisma.userRole.findFirst({
+				where: {
+					userId: ctx.session.user.id,
+					role: {
+						name: {
+							in: ['TEACHER', 'ADMIN']
+						}
+					}
+				}
+			});
+
+			if (!userRole) {
+				throw new TRPCError({
+					code: 'FORBIDDEN',
+					message: 'You do not have permission to grade activities',
+				});
+			}
+
+			return ctx.prisma.activitySubmission.upsert({
+				where: {
+					activityId_studentId: {
+						activityId: input.activityId,
+						studentId: input.studentId,
+					}
+				},
+				update: {
+					obtainedMarks: input.obtainedMarks,
+					totalMarks: input.totalMarks,
+					feedback: input.feedback,
+					gradedBy: ctx.session.user.id,
+					gradedAt: new Date(),
+					status: Status.GRADED,
+				},
+				create: {
+					activityId: input.activityId,
+					studentId: input.studentId,
+					obtainedMarks: input.obtainedMarks,
+					totalMarks: input.totalMarks,
+					feedback: input.feedback,
+					gradedBy: ctx.session.user.id,
+					gradedAt: new Date(),
+					status: Status.GRADED,
+				},
+			});
+		}),
 });

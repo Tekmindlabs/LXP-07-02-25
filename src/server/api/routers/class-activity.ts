@@ -159,6 +159,15 @@ export const classActivityRouter = createTRPCRouter({
 						select: {
 							name: true
 						}
+					},
+					submissions: {
+						include: {
+							student: {
+								include: {
+									user: true
+								}
+							}
+						}
 					}
 				}
 			});

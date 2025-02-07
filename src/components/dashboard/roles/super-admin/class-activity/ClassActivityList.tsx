@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { api } from "@/utils/api";
 import { Button } from "@/components/ui/button";
+import { GradeActivityModal } from "@/components/dashboard/gradebook/GradeActivityModal";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ActivityType, ActivityWithBasicSubmissions } from "@/types/class-activity";
@@ -41,6 +42,7 @@ interface Filters {
 export default function ClassActivityList({ onEdit }: Props) {
 	const [filters, setFilters] = useState<Filters>({ search: "" });
 	const [selectedActivity, setSelectedActivity] = useState<string | null>(null);
+	const [gradeActivityId, setGradeActivityId] = useState<string | null>(null);
 	const { toast } = useToast();
 
 	const utils = api.useContext();
@@ -176,6 +178,13 @@ export default function ClassActivityList({ onEdit }: Props) {
 											Edit
 										</Button>
 										<Button
+											variant="outline"
+											size="sm"
+											onClick={() => setGradeActivityId(activity.id)}
+										>
+											Grade
+										</Button>
+										<Button
 											variant="destructive"
 											size="sm"
 											onClick={() => handleDelete(activity.id)}
@@ -227,6 +236,14 @@ export default function ClassActivityList({ onEdit }: Props) {
 						</div>
 					</DialogContent>
 				</Dialog>
+			)}
+
+			{gradeActivityId && (
+				<GradeActivityModal
+					activityId={gradeActivityId}
+					isOpen={!!gradeActivityId}
+					onClose={() => setGradeActivityId(null)}
+				/>
 			)}
 		</div>
 	);
