@@ -4,14 +4,21 @@ export async function seedCourses(prisma: PrismaClient) {
 	const program = await prisma.program.findFirst();
 	if (!program) return;
 
-	// First create a calendar
-	const calendar = await prisma.calendar.create({
-		data: {
+	// First create or find existing calendar
+	const calendar = await prisma.calendar.upsert({
+		where: {
+			name_type: {
+				name: 'Academic Calendar 2025',
+				type: CalendarType.SECONDARY
+			}
+		},
+		update: {},  // No updates needed if it exists
+		create: {
 			name: 'Academic Calendar 2025',
 			description: 'Calendar for Academic Year 2025',
 			startDate: new Date('2025-01-01'),
 			endDate: new Date('2025-12-31'),
-			type: CalendarType.PRIMARY,
+			type: CalendarType.SECONDARY,
 			status: Status.ACTIVE,
 			visibility: Visibility.ALL,
 		}
