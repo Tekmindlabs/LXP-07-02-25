@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { api } from "@/utils/api";
 import { ClassGroup, Status } from "@prisma/client";
-import { Edit2, Trash2, Users, BookOpen } from "lucide-react";
+import { Edit2, Trash2, Users, BookOpen, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ClassGroupListProps {
@@ -16,9 +16,10 @@ interface ClassGroupListProps {
 		subjects: any[];
 	})[];
 	onEdit: (id: string) => void;
+	onView: (id: string) => void;
 }
 
-export const ClassGroupList = ({ classGroups, onEdit }: ClassGroupListProps) => {
+export const ClassGroupList = ({ classGroups, onEdit, onView }: ClassGroupListProps) => {
 	const { toast } = useToast();
 	const utils = api.useContext();
 	const deleteMutation = api.classGroup.deleteClassGroup.useMutation({
@@ -76,6 +77,15 @@ export const ClassGroupList = ({ classGroups, onEdit }: ClassGroupListProps) => 
 							</div>
 							<div className="border-t p-4">
 								<div className="flex justify-end space-x-2">
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => onView(group.id)}
+										className="flex items-center gap-2"
+									>
+										<Eye className="h-4 w-4" />
+										View
+									</Button>
 									<Button
 										variant="outline"
 										size="sm"

@@ -1,16 +1,18 @@
 'use client';
 
+import { useParams } from 'next/navigation';
 import { ClassGroupForm } from "@/components/dashboard/roles/super-admin/class-group/ClassGroupForm";
 import { api } from "@/utils/api";
 
-interface EditClassGroupPageProps {
-	params: {
-		id: string;
-	};
-}
+export default function EditClassGroupPage() {
+	const params = useParams();
+	const { data: classGroup, isLoading: classGroupLoading } = api.classGroup.getClassGroup.useQuery(params.id as string);
+	const { data: programsData, isLoading: programsLoading } = api.program.getAll.useQuery({
+		page: 1,
+		pageSize: 100
+	});
 
-export default function EditClassGroupPage({ params }: EditClassGroupPageProps) {
-	const { data: classGroup, isLoading } = api.classGroup.getClassGroup.useQuery(params.id);
+	const isLoading = classGroupLoading || programsLoading;
 
 	if (isLoading) {
 		return (
@@ -20,10 +22,10 @@ export default function EditClassGroupPage({ params }: EditClassGroupPageProps) 
 		);
 	}
 
-	if (!classGroup) {
+	if (!classGroup || !programsData) {
 		return (
 			<div className="p-4 text-center">
-				<p className="text-destructive">Failed to load class group details.</p>
+				<p className="text-destructive">Failed to load required data.</p>
 			</div>
 		);
 	}
@@ -32,10 +34,14 @@ export default function EditClassGroupPage({ params }: EditClassGroupPageProps) 
 		<div className="container mx-auto py-6">
 			<h1 className="text-2xl font-bold mb-6">Edit Class Group</h1>
 			<ClassGroupForm 
+				programs={programsData.programs.map(p => ({
+					id: p.id,
+					name: p.name || 'Unnamed Program'
+				}))}
 				selectedClassGroup={{
 					id: classGroup.id,
 					name: classGroup.name,
-					description: classGroup.description || "",
+					description: classGroup.description,
 					programId: classGroup.programId,
 					status: classGroup.status,
 					calendarId: classGroup.calendarId

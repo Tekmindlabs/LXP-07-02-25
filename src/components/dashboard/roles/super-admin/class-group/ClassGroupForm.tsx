@@ -25,7 +25,7 @@ interface Calendar {
 
 interface FormData {
 	name: string;
-	description: string;
+	description?: string;
 	programId: string;
 	status: Status;
 	calendar: {
@@ -35,10 +35,11 @@ interface FormData {
 }
 
 interface Props {
+	programs: Program[];
 	selectedClassGroup?: {
 		id: string;
 		name: string;
-		description?: string;
+		description: string | null;
 		programId: string;
 		status: Status;
 		calendarId?: string;
@@ -46,10 +47,10 @@ interface Props {
 	onSuccess?: () => void;
 }
 
-export const ClassGroupForm = ({ selectedClassGroup, onSuccess }: Props) => {
+export const ClassGroupForm = ({ programs, selectedClassGroup, onSuccess }: Props) => {
 	const [formData, setFormData] = useState<FormData>({
 		name: selectedClassGroup?.name || "",
-		description: selectedClassGroup?.description || "",
+		description: selectedClassGroup?.description || undefined,
 		programId: selectedClassGroup?.programId || "",
 		status: selectedClassGroup?.status || Status.ACTIVE,
 		calendar: {
@@ -58,14 +59,9 @@ export const ClassGroupForm = ({ selectedClassGroup, onSuccess }: Props) => {
 		}
 	});
 
-	const { data: programsData } = api.program.getAll.useQuery({
-		page: 1,
-		pageSize: 100,
-		search: "",
-	});
 	const { data: calendars } = api.calendar.getAll.useQuery();
-	
-	const programs = programsData?.programs || [];
+
+
 
 
 	const utils = api.useContext();

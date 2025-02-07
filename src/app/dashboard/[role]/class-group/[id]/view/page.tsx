@@ -1,17 +1,14 @@
 'use client';
 
+import { useParams } from 'next/navigation';
 import { ClassGroupDetailsView } from "@/components/dashboard/roles/super-admin/class-group/ClassGroupDetailsView";
 
-interface ViewClassGroupPageProps {
-	params: {
-		id: string;
-	};
-}
+export default function ViewClassGroupPage() {
+	const params = useParams();
 
-export default function ViewClassGroupPage({ params }: ViewClassGroupPageProps) {
 	return (
 		<div className="container mx-auto py-6">
-			<ClassGroupDetailsView classGroupId={params.id} />
+			<ClassGroupDetailsView classGroupId={params.id as string} />
 		</div>
 	);
 }

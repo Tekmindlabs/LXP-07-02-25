@@ -398,6 +398,84 @@ export const classGroupRouter = createTRPCRouter({
 			});
 		}),
 
+	getOverallAnalytics: protectedProcedure
+		.query(async ({ ctx }) => {
+			const now = new Date();
+			const lastMonth = new Date(now.setMonth(now.getMonth() - 1));
+
+			// Get current and previous period data
+			const [currentPeriodData, previousPeriodData] = await Promise.all([
+				ctx.prisma.classGroup.findMany({
+					include: {
+						classes: {
+							include: {
+								students: true,
+								teachers: true,
+							}
+						},
+						subjects: true,
+					},
+					where: {
+						createdAt: {
+							gte: lastMonth,
+						}
+					}
+				}),
+				ctx.prisma.classGroup.findMany({
+					include: {
+						classes: {
+							include: {
+								students: true,
+								teachers: true,
+							}
+						},
+						subjects: true,
+					},
+					where: {
+						createdAt: {
+							lt: lastMonth,
+						}
+					}
+				})
+			]);
+
+			// Calculate student growth
+			const currentStudents = currentPeriodData.reduce((acc, group) => 
+				acc + group.classes.reduce((sum, cls) => sum + cls.students.length, 0), 0);
+			const previousStudents = previousPeriodData.reduce((acc, group) => 
+				acc + group.classes.reduce((sum, cls) => sum + cls.students.length, 0), 0);
+			
+			const studentGrowth = previousStudents > 0 
+				? ((currentStudents - previousStudents) / previousStudents) * 100 
+				: 0;
+
+			// Calculate average performance from activities
+			const activities = await ctx.prisma.classActivity.findMany({
+				where: {
+					createdAt: {
+						gte: lastMonth,
+					}
+				},
+				include: {
+					submissions: true,
+				}
+			});
+
+			const averagePerformance = activities.length > 0 
+				? activities.reduce((acc, activity) => {
+						const activityAvg = activity.submissions.reduce((sum, sub) => 
+							sum + (sub.obtainedMarks / sub.totalMarks * 100), 0) / 
+							(activity.submissions.length || 1);
+						return acc + activityAvg;
+					}, 0) / activities.length
+				: 0;
+
+			return {
+				studentGrowth,
+				averagePerformance: Math.round(averagePerformance * 100) / 100,
+			};
+		}),
+
 	getById: protectedProcedure
 		.input(z.string())
 		.query(async ({ ctx, input }) => {
