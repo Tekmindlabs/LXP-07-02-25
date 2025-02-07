@@ -11,42 +11,42 @@ import { type AppRouter } from '@/server/api/root';
 export const api = createTRPCReact<AppRouter>();
 
 export function TRPCReactProvider(props: { children: React.ReactNode; cookies: string }) {
-	const [queryClient] = useState(() => new QueryClient({
-		defaultOptions: {
-			queries: {
-				retry: false,
-				refetchOnWindowFocus: false,
-			},
-		},
-	}));
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        refetchOnWindowFocus: false,
+      },
+    },
+  }));
 
-	const [trpcClient] = useState(() =>
-		api.createClient({
-			links: [
-				loggerLink({
-					enabled: (opts) =>
-						process.env.NODE_ENV === 'development' ||
-						(opts.direction === 'down' && opts.result instanceof Error),
-				}),
-				httpBatchLink({
-					url: '/api/trpc',
-					transformer: superjson,
-					headers() {
-						return {
-							cookie: props.cookies,
-							'x-trpc-source': 'react',
-						};
-					},
-				}),
-			],
-		})
-	);
+  const [trpcClient] = useState(() =>
+    api.createClient({
+      links: [
+        loggerLink({
+          enabled: (opts) =>
+            process.env.NODE_ENV === 'development' ||
+            (opts.direction === 'down' && opts.result instanceof Error),
+        }),
+        httpBatchLink({
+          url: '/api/trpc',
+          transformer: superjson,
+          headers() {
+            return {
+              cookie: props.cookies,
+              'x-trpc-source': 'react',
+            };
+          },
+        }),
+      ],
+    })
+  );
 
-	return (
-		<QueryClientProvider client={queryClient}>
-			<api.Provider client={trpcClient} queryClient={queryClient}>
-				{props.children}
-			</api.Provider>
-		</QueryClientProvider>
-	);
+  return (
+    <QueryClientProvider client={queryClient}>
+      <api.Provider client={trpcClient} queryClient={queryClient}>
+        {props.children}
+      </api.Provider>
+    </QueryClientProvider>
+  );
 }

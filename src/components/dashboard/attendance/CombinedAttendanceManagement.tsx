@@ -28,6 +28,7 @@ interface StudentWithUser {
 interface ExistingAttendance {
   studentId: string;
   status: AttendanceStatus;
+  notes: string | null;
 }
 
 
@@ -37,7 +38,12 @@ export const CombinedAttendanceManagement = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedClass, setSelectedClass] = useState<string>("no-class-selected");
   const [activeTab, setActiveTab] = useState<string>('quick');
-  const [attendanceData, setAttendanceData] = useState<Map<string, AttendanceStatus>>(new Map());
+  interface AttendanceRecord {
+    status: AttendanceStatus;
+    notes?: string;
+  }
+
+  const [attendanceData, setAttendanceData] = useState<Map<string, AttendanceRecord>>(new Map());
 
   // Improved role checking
   const userRoles = session?.user?.roles || [];
@@ -108,8 +114,11 @@ export const CombinedAttendanceManagement = () => {
   useEffect(() => {
     if (existingAttendance) {
       const newAttendanceData = new Map();
-        existingAttendance.forEach((record: ExistingAttendance) => {
-        newAttendanceData.set(record.studentId, record.status);
+      existingAttendance.forEach((record) => {
+        newAttendanceData.set(record.studentId, {
+          status: record.status,
+          notes: record.notes ?? undefined
+        });
       });
       setAttendanceData(newAttendanceData);
     }
@@ -129,20 +138,23 @@ export const CombinedAttendanceManagement = () => {
     }
   });
 
-  const markAttendance = (studentId: string, status: AttendanceStatus) => {
-    setAttendanceData(new Map(attendanceData.set(studentId, status)));
+  const markAttendance = (studentId: string, status: AttendanceStatus, notes?: string) => {
+    setAttendanceData(new Map(attendanceData.set(studentId, {
+      status,
+      notes: notes || attendanceData.get(studentId)?.notes
+    })));
   };
 
   const handleSave = async () => {
     if (!selectedClass) return;
 
     try {
-      const records = Array.from(attendanceData.entries()).map(([studentId, status]) => ({
+        const records = Array.from(attendanceData.entries()).map(([studentId, record]) => ({
         studentId,
-        status,
+        status: record.status,
+        notes: record.notes,
         date: selectedDate,
-        classId: selectedClass,
-        notes: undefined
+        classId: selectedClass
       }));
 
         // Optimistic update with proper typing
@@ -317,13 +329,13 @@ export const CombinedAttendanceManagement = () => {
                       key={student.id}
                       {...handlers}
                       data-student-id={student.id}
-                      className={`p-4 rounded-lg shadow transition-colors ${
-                      attendanceData.get(student.id) === AttendanceStatus.PRESENT
-                      ? 'bg-green-50'
-                      : attendanceData.get(student.id) === AttendanceStatus.ABSENT
-                      ? 'bg-red-50'
-                      : 'bg-white'
-                      }`}
+                        className={`p-4 rounded-lg shadow transition-colors ${
+                        attendanceData.get(student.id)?.status === AttendanceStatus.PRESENT
+                        ? 'bg-green-50'
+                        : attendanceData.get(student.id)?.status === AttendanceStatus.ABSENT
+                        ? 'bg-red-50'
+                        : 'bg-white'
+                        }`}
                       >
                       <div className="flex justify-between items-center">
                       <span>{student.user.name || 'Unnamed Student'}</span>
@@ -331,14 +343,14 @@ export const CombinedAttendanceManagement = () => {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => markAttendance(student.id, AttendanceStatus.PRESENT)}
+                            onClick={() => markAttendance(student.id, AttendanceStatus.PRESENT, attendanceData.get(student.id)?.notes)}
                         >
                           Present
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => markAttendance(student.id, AttendanceStatus.ABSENT)}
+                            onClick={() => markAttendance(student.id, AttendanceStatus.ABSENT, attendanceData.get(student.id)?.notes)}
                         >
                           Absent
                         </Button>
@@ -364,8 +376,8 @@ export const CombinedAttendanceManagement = () => {
                         <td className="p-2">{student.user.name}</td>
                         <td className="p-2">
                             <Select
-                              value={attendanceData.get(student.id) || 'NOT_MARKED'}
-                              onValueChange={(value) => markAttendance(student.id, value as AttendanceStatus)}
+                                value={attendanceData.get(student.id)?.status || AttendanceStatus.PRESENT}
+                                onValueChange={(value) => markAttendance(student.id, value as AttendanceStatus, attendanceData.get(student.id)?.notes)}
                             >
                               <SelectTrigger>
                               <SelectValue placeholder="Select status" />
@@ -386,6 +398,12 @@ export const CombinedAttendanceManagement = () => {
                             type="text"
                             className="w-full p-2 border rounded"
                             placeholder="Add notes..."
+                            value={attendanceData.get(student.id)?.notes || ''}
+                            onChange={(e) => markAttendance(
+                              student.id,
+                                attendanceData.get(student.id)?.status || AttendanceStatus.PRESENT,
+                              e.target.value
+                            )}
                           />
                         </td>
                       </tr>
