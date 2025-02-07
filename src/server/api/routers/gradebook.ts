@@ -9,8 +9,8 @@ interface GradeData {
 	feedback?: string | null;
 	gradedBy: string;
 	gradedAt: Date;
-	status: Status;
-	content: Prisma.JsonValue;
+	status: string;
+	content: Prisma.InputJsonValue;
 	isPassing: boolean;
 	gradingType: 'MANUAL' | 'AUTOMATIC';
 }
@@ -94,15 +94,15 @@ export const gradebookRouter = createTRPCRouter({
 						user: {
 							select: {
 								id: true,
-								name: true
-							}
-						},
-						submissions: {
-							include: {
-								activity: {
-									select: {
-										id: true,
-										title: true
+								name: true,
+								submissions: {
+									include: {
+										activity: {
+											select: {
+												id: true,
+												title: true
+											}
+										}
 									}
 								}
 							}
@@ -111,15 +111,15 @@ export const gradebookRouter = createTRPCRouter({
 				});
 
 				const studentGrades = students.map(student => {
-					const grades = student.submissions.map(submission => ({
+					const grades = student.user.submissions.map(submission => ({
 						activityId: submission.activity.id,
 						activityName: submission.activity.title,
 						grade: submission.obtainedMarks ?? 0,
 						totalPoints: submission.totalMarks ?? 0
 					}));
 
-					const totalPoints = grades.reduce((acc, grade) => acc + grade.grade, 0);
-					const maxPoints = grades.reduce((acc, grade) => acc + grade.totalPoints, 0);
+					const totalPoints = grades.reduce((acc: number, grade) => acc + grade.grade, 0);
+					const maxPoints = grades.reduce((acc: number, grade) => acc + grade.totalPoints, 0);
 					const overallGrade = maxPoints > 0 ? (totalPoints / maxPoints) * 100 : 0;
 
 					return {
@@ -157,7 +157,7 @@ export const gradebookRouter = createTRPCRouter({
 						userId: ctx.session.user.id,
 						role: {
 							name: {
-								in: ['TEACHER', 'ADMIN', 'SUPER_ADMIN']
+								in: ['TEACHER', 'ADMIN', 'SUPER_ADMIN'].map(role => role.toLowerCase())
 							}
 						}
 					}
@@ -196,8 +196,8 @@ export const gradebookRouter = createTRPCRouter({
 					feedback: input.feedback,
 					gradedBy: ctx.session.user.id,
 					gradedAt: new Date(),
-					status: Status.GRADED,
-					content: {},
+					status: "GRADED",
+					content: {} as Prisma.InputJsonValue,
 					isPassing: input.obtainedMarks >= input.totalMarks * 0.6,
 					gradingType: 'MANUAL'
 				};

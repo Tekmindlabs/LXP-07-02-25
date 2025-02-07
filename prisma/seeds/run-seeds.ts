@@ -8,7 +8,7 @@ import { seedClasses } from './classes';
 import { seedClassrooms } from './classrooms';
 import { seedTimetables } from './timetables';
 import { seedActivities } from './activities';
-import { seedCourses } from './courses';
+
 
 const prisma = new PrismaClient();
 
@@ -33,10 +33,7 @@ async function runAllSeeds() {
 		const programs = await seedPrograms(prisma, calendar.id);
 		console.timeEnd('Programs Seeding');
 		
-		// Courses
-		console.time('Courses Seeding');
-		await seedCourses(prisma);
-		console.timeEnd('Courses Seeding');
+		
 		
 		// Class groups
 		console.time('Class Groups Seeding');
