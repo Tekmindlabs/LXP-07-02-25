@@ -1,7 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
-import { RolePermissions } from "@/utils/permissions";
+import { Permission, RolePermissions } from "@/utils/permissions";
 import { getServerAuthSession } from "@/server/auth";
 import { prisma } from "@/server/db";
 import type { Session } from "next-auth";
@@ -14,17 +14,26 @@ export type Context = {
 import type { CreateNextContextOptions } from '@trpc/server/adapters/next';
 
 export const createTRPCContext = async (opts: CreateNextContextOptions) => {
-  const { req, res } = opts;
-  const session = await getServerAuthSession({ req, res });
+  const session = await getServerAuthSession();
 
   // Ensure we have the user's roles in the session
   if (session?.user) {
     const userWithRoles = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { roles: true }
+      include: {
+        userRoles: {
+          include: {
+            role: {
+              select: {
+                name: true
+              }
+            }
+          }
+        }
+      }
     });
     
-    session.user.roles = userWithRoles?.roles || [];
+    session.user.roles = userWithRoles?.userRoles?.map(ur => ur.role.name) || [];
   }
 
   return {
@@ -69,7 +78,7 @@ const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
 
 export const protectedProcedure = t.procedure.use(enforceUserIsAuthed);
 
-const enforceUserHasPermission = (requiredPermission: string) =>
+const enforceUserHasPermission = (requiredPermission: Permission) =>
   t.middleware(async ({ ctx, next }) => {
     if (!ctx.session?.user) {
       throw new TRPCError({
@@ -104,5 +113,5 @@ const enforceUserHasPermission = (requiredPermission: string) =>
     });
   });
 
-export const permissionProtectedProcedure = (permission: string) =>
+export const permissionProtectedProcedure = (permission: Permission) =>
   t.procedure.use(enforceUserHasPermission(permission));
