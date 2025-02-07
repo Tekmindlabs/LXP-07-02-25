@@ -1,11 +1,18 @@
+import { Prisma } from "@prisma/client";
+
 export interface ActivitySubmissionBasic {
 	id: string;
-	status: string;
+	status: 'PENDING' | 'SUBMITTED' | 'GRADED' | 'LATE' | 'MISSED';
 	submittedAt: Date;
 	studentId: string;
 	obtainedMarks: number | null;
 	totalMarks: number | null;
 	feedback: string | null;
+	content: Prisma.JsonValue;
+	isPassing: boolean;
+	gradingType: 'AUTOMATIC' | 'MANUAL';
+	gradedBy?: string;
+	gradedAt?: Date;
 	student: {
 		id: string;
 		name: string | null;
@@ -85,7 +92,7 @@ export interface ActivitySubmission {
 	activityId: string;
 	studentId: string;
 	submittedAt: Date;
-	content: any;
+	content: Prisma.JsonValue;
 	totalMarks: number;
 	obtainedMarks: number;
 	isPassing: boolean;
@@ -93,7 +100,7 @@ export interface ActivitySubmission {
 	gradedBy?: string;
 	gradedAt?: Date;
 	feedback?: string;
-	status: 'SUBMITTED' | 'GRADED' | 'PENDING';
+	status: 'PENDING' | 'SUBMITTED' | 'GRADED' | 'LATE' | 'MISSED';
 }
 
 export interface GradingResult {

@@ -196,10 +196,13 @@ export const classActivityRouter = createTRPCRouter({
 
 				return activity;
 			} catch (error) {
+				if (error instanceof TRPCError) {
+					throw error;
+				}
 				console.error('Error in getById query:', error);
 				throw new TRPCError({
 					code: 'INTERNAL_SERVER_ERROR',
-					message: 'Failed to fetch activity details',
+					message: 'Failed to fetch activity details. Please try again.',
 					cause: error
 				});
 			}

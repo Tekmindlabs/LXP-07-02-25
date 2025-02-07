@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/utils/api";
 import { useToast } from "@/hooks/use-toast";
+
+interface GradeState {
+	obtained: number;
+	total: number;
+	feedback?: string;
+}
 
 interface GradeActivityModalProps {
 	activityId: string;
@@ -17,104 +23,140 @@ interface GradeActivityModalProps {
 
 export function GradeActivityModal({ activityId, isOpen, onClose }: GradeActivityModalProps) {
 	const { toast } = useToast();
-	const [grades, setGrades] = useState<Record<string, { obtained: number; total: number; feedback?: string }>>({});
+	const [grades, setGrades] = useState<Record<string, GradeState>>({});
+	const [isSaving, setIsSaving] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 	const utils = api.useContext();
+	const toastShownRef = useRef(false);
 
 	// Fetch activity details and student submissions
-	const { data: activity, isLoading, error } = api.classActivity.getById.useQuery(
+	const { data: activity, isLoading, error: queryError } = api.classActivity.getById.useQuery(
 		activityId,
 		{ enabled: isOpen }
 	);
 
+	// Initialize grades from activity data
+	useEffect(() => {
+		if (activity?.submissions) {
+			const initialGrades = activity.submissions.reduce((acc, submission) => ({
+				...acc,
+				[submission.studentId]: {
+					obtained: submission.obtainedMarks ?? 0,
+					total: submission.totalMarks ?? 0,
+					feedback: submission.feedback ?? ''
+				}
+			}), {});
+			setGrades(initialGrades);
+		}
+	}, [activity]);
+
 	// Mutation for saving grades
 	const gradeMutation = api.gradebook.gradeActivity.useMutation({
+		onMutate: () => {
+			// Optimistic update can be added here if needed
+		},
 		onSuccess: () => {
+			// Don't show success toast here as we're handling it in handleSaveGrades
+		},
+		onError: (error) => {
+			console.error('Mutation error:', error);
+			// Don't show error toast here as we're handling it in handleSaveGrades
+		},
+	});
+
+
+	const validateGradeChange = useCallback((currentGrade: { obtained: number; total: number }, field: 'obtained' | 'total', value: number) => {
+		if (field === 'obtained' && value > currentGrade.total) {
+			return false;
+		}
+		if (field === 'total' && value < currentGrade.obtained) {
+			return false;
+		}
+		return true;
+	}, []);
+
+	const handleGradeChange = useCallback((studentId: string, field: 'obtained' | 'total' | 'feedback', value: string) => {
+		const numValue = field === 'feedback' ? value : (value === '' ? 0 : Number(value));
+		const currentGrade = grades[studentId] || { obtained: 0, total: 0 };
+
+		if (field !== 'feedback') {
+			const isValid = validateGradeChange(currentGrade, field, numValue as number);
+			if (!isValid && !toastShownRef.current) {
+				toastShownRef.current = true;
+				setTimeout(() => {
+					toastShownRef.current = false;
+				}, 100);
+				
+				toast({
+					title: "Error",
+					description: field === 'obtained' ? 
+						"Obtained marks cannot exceed total marks" : 
+						"Total marks cannot be less than obtained marks",
+					variant: "destructive",
+				});
+				return;
+			}
+		}
+
+		setGrades(prev => ({
+			...prev,
+			[studentId]: {
+				...prev[studentId] || { obtained: 0, total: 0 },
+				[field]: numValue
+			}
+		}));
+	}, [grades, toast, validateGradeChange]);
+
+	const handleSaveGrades = useCallback(async () => {
+		setError(null);
+		if (Object.keys(grades).length === 0) {
+			setError("Please enter grades for at least one student");
+			return;
+		}
+
+		try {
+			setIsSaving(true);
+			const validGrades = Object.entries(grades).filter(([_, grade]) => {
+				const isValid = typeof grade.obtained === 'number' && 
+							  typeof grade.total === 'number' &&
+							  !isNaN(grade.obtained) && 
+							  !isNaN(grade.total) &&
+							  grade.total > 0 &&
+							  grade.obtained <= grade.total;
+				return isValid;
+			});
+
+			if (validGrades.length === 0) {
+				setError("Please enter valid marks for at least one student. Ensure obtained marks don't exceed total marks.");
+				setIsSaving(false);
+				return;
+			}
+
+			// Save grades sequentially
+			for (const [studentId, grade] of validGrades) {
+				await gradeMutation.mutateAsync({
+					activityId,
+					studentId,
+					obtainedMarks: grade.obtained,
+					totalMarks: grade.total,
+					feedback: grade.feedback,
+				});
+			}
+
 			toast({
 				title: "Success",
 				description: "Grades saved successfully",
 			});
 			utils.classActivity.getById.invalidate(activityId);
 			onClose();
-		},
-		onError: (error) => {
-			toast({
-				title: "Error",
-				description: error.message,
-				variant: "destructive",
-			});
-		},
-	});
-
-	const handleGradeChange = (studentId: string, field: 'obtained' | 'total' | 'feedback', value: string) => {
-		setGrades(prev => {
-			const currentGrade = prev[studentId] || { obtained: 0, total: 0 };
-			const numValue = field === 'feedback' ? value : (value === '' ? 0 : Number(value));
-
-			// If updating obtained marks, ensure it doesn't exceed total
-			if (field === 'obtained' && typeof numValue === 'number' && numValue > currentGrade.total) {
-				toast({
-					title: "Error",
-					description: "Obtained marks cannot exceed total marks",
-					variant: "destructive",
-				});
-				return prev;
-			}
-
-			// If updating total marks, ensure it's not less than obtained
-			if (field === 'total' && typeof numValue === 'number' && numValue < currentGrade.obtained) {
-				toast({
-					title: "Error",
-					description: "Total marks cannot be less than obtained marks",
-					variant: "destructive",
-				});
-				return prev;
-			}
-
-			return {
-				...prev,
-				[studentId]: {
-					...currentGrade,
-					[field]: numValue
-				}
-			};
-		});
-	};
-
-	const handleSaveGrades = async () => {
-		try {
-			const validGrades = Object.entries(grades).filter(
-				([_, grade]) => typeof grade.obtained === 'number' && 
-							   typeof grade.total === 'number' &&
-							   !isNaN(grade.obtained) && 
-							   !isNaN(grade.total) &&
-							   grade.total > 0 &&
-							   grade.obtained <= grade.total
-			);
-
-			if (validGrades.length === 0) {
-				toast({
-					title: "Error",
-					description: "Please enter valid marks for at least one student. Ensure obtained marks don't exceed total marks.",
-					variant: "destructive",
-				});
-				return;
-			}
-
-			await Promise.all(
-				validGrades.map(([studentId, grade]) =>
-					gradeMutation.mutateAsync({
-						activityId,
-						studentId,
-						obtainedMarks: grade.obtained,
-						totalMarks: grade.total,
-						feedback: grade.feedback,
-					})
-				)
-			);
 		} catch (error) {
 			console.error('Error saving grades:', error);
+			setError("Failed to save grades. Please try again.");
+		} finally {
+			setIsSaving(false);
 		}
-	};
+	}, [grades, activityId, gradeMutation, toast, utils.classActivity, onClose]);
+
 
 	// Loading state
 	if (isLoading) {
@@ -130,7 +172,7 @@ export function GradeActivityModal({ activityId, isOpen, onClose }: GradeActivit
 	}
 
 	// Error state
-	if (error) {
+	if (queryError) {
 		return (
 			<Dialog open={isOpen} onOpenChange={onClose}>
 				<DialogContent>
@@ -163,6 +205,11 @@ export function GradeActivityModal({ activityId, isOpen, onClose }: GradeActivit
 				</DialogHeader>
 
 				<div className="space-y-4">
+					{error && (
+						<div className="text-red-500 text-sm mb-4">
+							{error}
+						</div>
+					)}
 					<Table>
 						<TableHeader>
 							<TableRow>
@@ -219,8 +266,11 @@ export function GradeActivityModal({ activityId, isOpen, onClose }: GradeActivit
 						<Button variant="outline" onClick={onClose}>
 							Cancel
 						</Button>
-						<Button onClick={handleSaveGrades} disabled={gradeMutation.isLoading}>
-							{gradeMutation.isLoading ? 'Saving...' : 'Save Grades'}
+						<Button 
+							onClick={handleSaveGrades} 
+							disabled={isSaving}
+						>
+							{isSaving ? 'Saving...' : 'Save Grades'}
 						</Button>
 					</div>
 				</div>
