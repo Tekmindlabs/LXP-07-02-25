@@ -2,6 +2,37 @@
 
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+interface PerformanceData {
+	date: string;
+	averageScore: number;
+}
+
+interface SubjectPerformance {
+	subject: string;
+	averageScore: number;
+}
+
+interface AttendanceTrend {
+	date: string;
+	attendanceRate: number;
+}
+
+const validatePerformanceData = (data?: { data: PerformanceData[] }) => {
+	if (!data?.data?.length) return false;
+	return data.data.every(item => 
+		typeof item.averageScore === 'number' &&
+		typeof item.date === 'string'
+	);
+};
+
+const validateAttendanceData = (data?: { trends: AttendanceTrend[] }) => {
+	if (!data?.trends?.length) return false;
+	return data.trends.every(item => 
+		typeof item.attendanceRate === 'number' &&
+		typeof item.date === 'string'
+	);
+};
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/utils/api";
@@ -63,9 +94,40 @@ interface ClassGroupWithRelations extends ClassGroup {
 	}[];
 }
 
-interface ClassGroupDetailsViewProps {
-	classGroupId: string;
+interface PerformanceData {
+    date: string;
+    averageScore: number;
 }
+
+interface SubjectPerformance {
+    subject: string;
+    averageScore: number;
+}
+
+interface AttendanceTrend {
+    date: string;
+    attendanceRate: number;
+}
+
+interface ClassGroupDetailsViewProps {
+    classGroupId: string;
+}
+
+const validatePerformanceData = (data?: { data: PerformanceData[] }) => {
+    if (!data?.data?.length) return false;
+    return data.data.every(item => 
+        typeof item.averageScore === 'number' &&
+        typeof item.date === 'string'
+    );
+};
+
+const validateAttendanceData = (data?: { trends: AttendanceTrend[] }) => {
+    if (!data?.trends?.length) return false;
+    return data.trends.every(item => 
+        typeof item.attendanceRate === 'number' &&
+        typeof item.date === 'string'
+    );
+};
 
 export const ClassGroupDetailsView = ({ classGroupId }: ClassGroupDetailsViewProps) => {
 	const [dateRange, setDateRange] = useState<DateRange>({
@@ -77,28 +139,37 @@ export const ClassGroupDetailsView = ({ classGroupId }: ClassGroupDetailsViewPro
 		classGroupId
 	);
 
-	const { data: historicalData } = api.classGroup.getHistoricalAnalytics.useQuery({
+	const { data: historicalData, error: historicalError } = api.classGroup.getHistoricalAnalytics.useQuery({
 		id: classGroupId,
 		startDate: dateRange.from!,
 		endDate: dateRange.to!
 	}, {
-		enabled: !!dateRange.from && !!dateRange.to
+		enabled: !!dateRange.from && !!dateRange.to,
+		staleTime: 30000,
+		cacheTime: 60000,
+		retry: 2
 	});
 
-	const { data: performanceTrends } = api.classGroup.getPerformanceTrends.useQuery({
+	const { data: performanceTrends, error: performanceError } = api.classGroup.getPerformanceTrends.useQuery({
 		id: classGroupId,
 		startDate: dateRange.from!,
 		endDate: dateRange.to!
 	}, {
-		enabled: !!dateRange.from && !!dateRange.to
+		enabled: !!dateRange.from && !!dateRange.to,
+		staleTime: 30000,
+		cacheTime: 60000,
+		retry: 2
 	});
 
-	const { data: attendanceStats } = api.classGroup.getAttendanceStats.useQuery({
+	const { data: attendanceStats, error: attendanceError } = api.classGroup.getAttendanceStats.useQuery({
 		id: classGroupId,
 		startDate: dateRange.from!,
 		endDate: dateRange.to!
 	}, {
-		enabled: !!dateRange.from && !!dateRange.to
+		enabled: !!dateRange.from && !!dateRange.to,
+		staleTime: 30000,
+		cacheTime: 60000,
+		retry: 2
 	});
 
 	if (isLoading) {
@@ -109,10 +180,14 @@ export const ClassGroupDetailsView = ({ classGroupId }: ClassGroupDetailsViewPro
 		);
 	}
 
-	if (!classGroup) {
+	const hasError = historicalError || performanceError || attendanceError;
+	if (hasError || !classGroup) {
 		return (
 			<div className="p-4 text-center">
-				<p className="text-destructive">Failed to load class group details.</p>
+				<p className="text-destructive">
+					{historicalError?.message || performanceError?.message || 
+					 attendanceError?.message || "Failed to load class group details."}
+				</p>
 			</div>
 		);
 	}
@@ -216,16 +291,25 @@ export const ClassGroupDetailsView = ({ classGroupId }: ClassGroupDetailsViewPro
 							<CardTitle>Performance Overview</CardTitle>
 						</CardHeader>
 						<CardContent>
-							{performanceTrends?.data && (
+							{validatePerformanceData(performanceTrends) ? (
 								<ResponsiveContainer width="100%" height={300}>
 									<LineChart data={performanceTrends.data}>
 										<CartesianGrid strokeDasharray="3 3" />
 										<XAxis dataKey="date" />
 										<YAxis />
 										<Tooltip />
-										<Line type="monotone" dataKey="averageScore" stroke="#8884d8" />
+										<Line 
+											type="monotone" 
+											dataKey="averageScore" 
+											stroke="#8884d8"
+											name="Average Score"
+										/>
 									</LineChart>
 								</ResponsiveContainer>
+							) : (
+								<div className="text-center p-4 text-muted-foreground">
+									No performance data available for the selected period.
+								</div>
 							)}
 						</CardContent>
 					</Card>
@@ -259,16 +343,25 @@ export const ClassGroupDetailsView = ({ classGroupId }: ClassGroupDetailsViewPro
 							<CardTitle>Attendance Trends</CardTitle>
 						</CardHeader>
 						<CardContent>
-							{attendanceStats?.trends && (
+							{validateAttendanceData(attendanceStats) ? (
 								<ResponsiveContainer width="100%" height={300}>
 									<LineChart data={attendanceStats.trends}>
 										<CartesianGrid strokeDasharray="3 3" />
 										<XAxis dataKey="date" />
 										<YAxis />
 										<Tooltip />
-										<Line type="monotone" dataKey="attendanceRate" stroke="#82ca9d" />
+										<Line 
+											type="monotone" 
+											dataKey="attendanceRate" 
+											stroke="#82ca9d"
+											name="Attendance Rate"
+										/>
 									</LineChart>
 								</ResponsiveContainer>
+							) : (
+								<div className="text-center p-4 text-muted-foreground">
+									No attendance data available for the selected period.
+								</div>
 							)}
 						</CardContent>
 					</Card>
