@@ -117,13 +117,12 @@ export function GradeActivityModal({ activityId, isOpen, onClose }: GradeActivit
 		try {
 			setIsSaving(true);
 			const validGrades = Object.entries(grades).filter(([_, grade]) => {
-				const isValid = typeof grade.obtained === 'number' && 
-							  typeof grade.total === 'number' &&
-							  !isNaN(grade.obtained) && 
-							  !isNaN(grade.total) &&
-							  grade.total > 0 &&
-							  grade.obtained <= grade.total;
-				return isValid;
+				return typeof grade.obtained === 'number' && 
+					   typeof grade.total === 'number' &&
+					   !isNaN(grade.obtained) && 
+					   !isNaN(grade.total) &&
+					   grade.total > 0 &&
+					   grade.obtained <= grade.total;
 			});
 
 			if (validGrades.length === 0) {
@@ -132,25 +131,37 @@ export function GradeActivityModal({ activityId, isOpen, onClose }: GradeActivit
 				return;
 			}
 
-			// Save grades sequentially
+			// Save grades sequentially with proper error handling
 			for (const [studentId, grade] of validGrades) {
-				await gradeMutation.mutateAsync({
+				const payload = {
 					activityId,
 					studentId,
 					obtainedMarks: grade.obtained,
 					totalMarks: grade.total,
-					feedback: grade.feedback,
-				});
+					feedback: grade.feedback || '',
+				};
+
+				try {
+					await gradeMutation.mutateAsync(payload);
+				} catch (mutationError) {
+					console.error('Error saving grade for student:', studentId, mutationError);
+					throw mutationError; // Re-throw to be caught by outer catch
+				}
 			}
 
 			toast({
 				title: "Success",
 				description: "Grades saved successfully",
 			});
-			utils.classActivity.getById.invalidate(activityId);
+			await utils.classActivity.getById.invalidate(activityId);
 			onClose();
 		} catch (error) {
 			console.error('Error saving grades:', error);
+			toast({
+				title: "Error",
+				description: error instanceof Error ? error.message : "Failed to save grades. Please try again.",
+				variant: "destructive",
+			});
 			setError("Failed to save grades. Please try again.");
 		} finally {
 			setIsSaving(false);

@@ -1,6 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
+import { RolePermissions } from "@/utils/permissions";
 import { getServerAuthSession } from "@/server/auth";
 import { prisma } from "@/server/db";
 import type { Session } from "next-auth";
@@ -10,15 +11,20 @@ export type Context = {
   session: Session | null;
 };
 
-export const createTRPCContext = async (opts: { req: Request }): Promise<Context> => {
-  const session = await getServerAuthSession();
+import type { CreateNextContextOptions } from '@trpc/server/adapters/next';
 
-  if (!session) {
-    console.warn('No session found in TRPC context');
-    return {
-      prisma,
-      session: null,
-    };
+export const createTRPCContext = async (opts: CreateNextContextOptions) => {
+  const { req, res } = opts;
+  const session = await getServerAuthSession({ req, res });
+
+  // Ensure we have the user's roles in the session
+  if (session?.user) {
+    const userWithRoles = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { roles: true }
+    });
+    
+    session.user.roles = userWithRoles?.roles || [];
   }
 
   return {
@@ -72,7 +78,12 @@ const enforceUserHasPermission = (requiredPermission: string) =>
       });
     }
 
-    if (!ctx.session.user.permissions.includes(requiredPermission)) {
+    // Get all permissions for the user's roles
+    const userPermissions = ctx.session.user.roles.flatMap(role => 
+      RolePermissions[role as keyof typeof RolePermissions] || []
+    );
+
+    if (!userPermissions.includes(requiredPermission)) {
       throw new TRPCError({
         code: 'FORBIDDEN',
         message: 'You do not have permission to access this resource',
@@ -82,8 +93,13 @@ const enforceUserHasPermission = (requiredPermission: string) =>
     return next({
       ctx: {
         ...ctx,
-        // Ensure session is properly typed
-        session: ctx.session,
+        session: {
+          ...ctx.session,
+          user: {
+            ...ctx.session.user,
+            permissions: userPermissions
+          }
+        }
       },
     });
   });
