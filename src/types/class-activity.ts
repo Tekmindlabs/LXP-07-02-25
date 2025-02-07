@@ -2,10 +2,16 @@ export interface ActivitySubmissionBasic {
 	id: string;
 	status: string;
 	submittedAt: Date;
+	studentId: string;
+	obtainedMarks: number | null;
+	totalMarks: number | null;
+	feedback: string | null;
 	student: {
+		id: string;
 		name: string | null;
 	};
 }
+
 
 export interface ActivityWithBasicSubmissions {
 	id: string;

@@ -117,11 +117,17 @@ export const classActivityRouter = createTRPCRouter({
 								id: true,
 								status: true,
 								submittedAt: true,
+								studentId: true,
+								obtainedMarks: true,
+								totalMarks: true,
+								feedback: true,
 								student: {
 									select: {
+										id: true,
 										name: true
 									}
 								}
+
 							}
 						}
 					},
@@ -146,32 +152,59 @@ export const classActivityRouter = createTRPCRouter({
 	getById: protectedProcedure
 		.input(z.string())
 		.query(async ({ ctx, input }) => {
-			return ctx.prisma.classActivity.findUnique({
-				where: { id: input },
-				include: {
-					resources: true,
-					class: {
-						select: {
-							name: true
-						}
-					},
-					classGroup: {
-						select: {
-							name: true
-						}
-					},
-					submissions: {
-						include: {
-							student: {
-								include: {
-									user: true
+			try {
+				const activity = await ctx.prisma.classActivity.findUnique({
+					where: { id: input },
+					include: {
+						resources: true,
+						class: {
+							select: {
+								name: true
+							}
+						},
+						classGroup: {
+							select: {
+								name: true
+							}
+						},
+						submissions: {
+							select: {
+								id: true,
+								status: true,
+								submittedAt: true,
+								studentId: true,
+								obtainedMarks: true,
+								totalMarks: true,
+								feedback: true,
+								student: {
+									select: {
+										id: true,
+										name: true
+									}
 								}
 							}
 						}
 					}
+				});
+
+				if (!activity) {
+					throw new TRPCError({
+						code: 'NOT_FOUND',
+						message: 'Activity not found',
+					});
 				}
-			});
+
+				return activity;
+			} catch (error) {
+				console.error('Error in getById query:', error);
+				throw new TRPCError({
+					code: 'INTERNAL_SERVER_ERROR',
+					message: 'Failed to fetch activity details',
+					cause: error
+				});
+			}
 		}),
+
 
 	update: protectedProcedure
 		.input(z.object({

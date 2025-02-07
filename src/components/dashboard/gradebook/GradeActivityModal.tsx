@@ -18,14 +18,13 @@ interface GradeActivityModalProps {
 export function GradeActivityModal({ activityId, isOpen, onClose }: GradeActivityModalProps) {
 	const { toast } = useToast();
 	const [grades, setGrades] = useState<Record<string, { obtained: number; total: number; feedback?: string }>>({});
+	const utils = api.useContext();
 
 	// Fetch activity details and student submissions
-	const { data: activity } = api.classActivity.getById.useQuery(
-		{ id: activityId },
+	const { data: activity, isLoading, error } = api.classActivity.getById.useQuery(
+		activityId,
 		{ enabled: isOpen }
 	);
-
-	const utils = api.useContext();
 
 	// Mutation for saving grades
 	const gradeMutation = api.gradebook.gradeActivity.useMutation({
@@ -47,19 +46,62 @@ export function GradeActivityModal({ activityId, isOpen, onClose }: GradeActivit
 	});
 
 	const handleGradeChange = (studentId: string, field: 'obtained' | 'total' | 'feedback', value: string) => {
-		setGrades(prev => ({
-			...prev,
-			[studentId]: {
-				...prev[studentId],
-				[field]: field === 'feedback' ? value : Number(value)
+		setGrades(prev => {
+			const currentGrade = prev[studentId] || { obtained: 0, total: 0 };
+			const numValue = field === 'feedback' ? value : (value === '' ? 0 : Number(value));
+
+			// If updating obtained marks, ensure it doesn't exceed total
+			if (field === 'obtained' && typeof numValue === 'number' && numValue > currentGrade.total) {
+				toast({
+					title: "Error",
+					description: "Obtained marks cannot exceed total marks",
+					variant: "destructive",
+				});
+				return prev;
 			}
-		}));
+
+			// If updating total marks, ensure it's not less than obtained
+			if (field === 'total' && typeof numValue === 'number' && numValue < currentGrade.obtained) {
+				toast({
+					title: "Error",
+					description: "Total marks cannot be less than obtained marks",
+					variant: "destructive",
+				});
+				return prev;
+			}
+
+			return {
+				...prev,
+				[studentId]: {
+					...currentGrade,
+					[field]: numValue
+				}
+			};
+		});
 	};
 
 	const handleSaveGrades = async () => {
 		try {
+			const validGrades = Object.entries(grades).filter(
+				([_, grade]) => typeof grade.obtained === 'number' && 
+							   typeof grade.total === 'number' &&
+							   !isNaN(grade.obtained) && 
+							   !isNaN(grade.total) &&
+							   grade.total > 0 &&
+							   grade.obtained <= grade.total
+			);
+
+			if (validGrades.length === 0) {
+				toast({
+					title: "Error",
+					description: "Please enter valid marks for at least one student. Ensure obtained marks don't exceed total marks.",
+					variant: "destructive",
+				});
+				return;
+			}
+
 			await Promise.all(
-				Object.entries(grades).map(([studentId, grade]) =>
+				validGrades.map(([studentId, grade]) =>
 					gradeMutation.mutateAsync({
 						activityId,
 						studentId,
@@ -74,7 +116,44 @@ export function GradeActivityModal({ activityId, isOpen, onClose }: GradeActivit
 		}
 	};
 
-	if (!activity) return null;
+	// Loading state
+	if (isLoading) {
+		return (
+			<Dialog open={isOpen} onOpenChange={onClose}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Loading...</DialogTitle>
+					</DialogHeader>
+				</DialogContent>
+			</Dialog>
+		);
+	}
+
+	// Error state
+	if (error) {
+		return (
+			<Dialog open={isOpen} onOpenChange={onClose}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Error loading activity</DialogTitle>
+					</DialogHeader>
+				</DialogContent>
+			</Dialog>
+		);
+	}
+
+	// No activity state
+	if (!activity) {
+		return (
+			<Dialog open={isOpen} onOpenChange={onClose}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Activity not found</DialogTitle>
+					</DialogHeader>
+				</DialogContent>
+			</Dialog>
+		);
+	}
 
 	return (
 		<Dialog open={isOpen} onOpenChange={onClose}>
@@ -96,14 +175,18 @@ export function GradeActivityModal({ activityId, isOpen, onClose }: GradeActivit
 						<TableBody>
 							{activity.submissions?.map((submission) => (
 								<TableRow key={submission.studentId}>
-									<TableCell>{submission.student.user.name}</TableCell>
+									<TableCell>{submission.student?.name ?? 'Unknown Student'}</TableCell>
 									<TableCell>
 										<Input
 											type="number"
 											min={0}
 											value={grades[submission.studentId]?.obtained ?? submission.obtainedMarks ?? ''}
 											onChange={(e) => handleGradeChange(submission.studentId, 'obtained', e.target.value)}
-											className="w-20"
+											className={`w-20 ${
+												grades[submission.studentId]?.obtained > grades[submission.studentId]?.total 
+												? 'border-red-500' 
+												: ''
+											}`}
 										/>
 									</TableCell>
 									<TableCell>
@@ -112,7 +195,11 @@ export function GradeActivityModal({ activityId, isOpen, onClose }: GradeActivit
 											min={0}
 											value={grades[submission.studentId]?.total ?? submission.totalMarks ?? ''}
 											onChange={(e) => handleGradeChange(submission.studentId, 'total', e.target.value)}
-											className="w-20"
+											className={`w-20 ${
+												grades[submission.studentId]?.total < grades[submission.studentId]?.obtained 
+												? 'border-red-500' 
+												: ''
+											}`}
 										/>
 									</TableCell>
 									<TableCell>
